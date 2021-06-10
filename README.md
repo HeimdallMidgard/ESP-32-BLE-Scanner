@@ -44,6 +44,6 @@ It reports the presence of known bluetooth (Beacon) devices and reports it (via 
 5. Wait for the ESP32 to restart and check for the IP adress with an scan tool or check the serial connection for the device ip
 6. Connect to the Scanner and fill your Bluetooth details under devices.
 <img src="https://user-images.githubusercontent.com/50184150/121597100-93200900-ca40-11eb-92a1-570dcc807636.PNG" width="20%" height="20%">
-  1. In the HA App under Settings -> Manage Sensors -> Bluetooth Sensors -> BLE Transmitter -> Enable -> Copy and paste the UUID into the device adress in the ESP32 BLE Scanner under devices
+7. In the HA App under Settings -> Manage Sensors -> Bluetooth Sensors -> BLE Transmitter -> Enable -> Copy and paste the UUID into the device adress in the ESP32 BLE Scanner under devices
 
 
