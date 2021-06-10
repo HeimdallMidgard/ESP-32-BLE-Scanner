@@ -45,4 +45,6 @@ It reports the presence of known bluetooth (Beacon) devices and reports it (via 
 6. Connect to the Scanner and fill your Bluetooth details under devices.
 <img src="https://user-images.githubusercontent.com/50184150/121597100-93200900-ca40-11eb-92a1-570dcc807636.PNG" width="20%" height="20%">
 7. In the HA App under Settings -> Manage Sensors -> Bluetooth Sensors -> BLE Transmitter -> Enable -> Copy and paste the UUID into the device adress in the ESP32 BLE Scanner under devices
+8. Scanning Results will be published to "ESP32 BLE Scanner/Scan/Your Room Name"
+9. HA Settings:
 
