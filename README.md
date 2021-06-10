@@ -14,7 +14,7 @@ It reports the presence of known bluetooth (Beacon) devices and reports it (via 
 - Easy Integration into Home Assistant
 - Raw distance calculation
 
-<img src="https://user-images.githubusercontent.com/50184150/121602995-6839b300-ca48-11eb-886f-b7b27d54ad3e.PNG" width="20%" height="20%">
+<img src="https://user-images.githubusercontent.com/50184150/121602995-6839b300-ca48-11eb-886f-b7b27d54ad3e.PNG" width="60%" height="60%">
 
 ### Roadmap
 - provide bin for making first flash easier via ESP flash tool
