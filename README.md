@@ -25,8 +25,7 @@ It reports the presence of known bluetooth (Beacon) devices and reports it (via 
 - add support for more devices being saved
 
 ## How to install (via Plattformio)
-1. Download the program
-2. open and extract the content of the zip file to any place on your pc
+1. Download and extract the program
 3. Open the project folder in Plattformio
 4. Open Plattformio menue
 5. Plug in your ESP32
@@ -35,10 +34,12 @@ It reports the presence of known bluetooth (Beacon) devices and reports it (via 
 8. Click Upload Filesystem Image
 9. Click Upload and Monitor
 10. Check Serial Connections for errors
-11. The ESP32 should start its own AP - look for a Wifi named "ESP32-BLE-Scanner"
-12. Connect to the Wifi (it should not have a password)
-13. Go to settings and change your Wifi and MQTT settings
-14. Wait for the ESP32 to restart and check for the IP adress with an scan tool or check the serial connection for the device ip
-15. Connect to the Scanner and fill your Bluetooth details untder devices. (Tip: You can find and change your own BL adress in the HA App under Settings - Sensors - BLE Transmitter - Activate - Copy and paste the UUID into the device adress
+
+## Set it up
+1. The ESP32 should start its own AP - look for a Wifi named "ESP32-BLE-Scanner" / If you changed settings.json you can jump to 5.
+2. Connect to the Wifi (it should not have a password)
+3. Go to http://192.168.4.1 Setup and change your Wifi and MQTT settings
+4. Wait for the ESP32 to restart and check for the IP adress with an scan tool or check the serial connection for the device ip
+5. Connect to the Scanner and fill your Bluetooth details under devices. (Tip: You can find and change your own BL adress in the HA App under Settings - Sensors - BLE Transmitter - Activate - Copy and paste the UUID into the device adress
 
 
