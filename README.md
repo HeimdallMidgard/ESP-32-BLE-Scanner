@@ -39,7 +39,7 @@ It reports the presence of known bluetooth (Beacon) devices and reports it (via 
 1. The ESP32 should start its own AP - look for a Wifi named "ESP32-BLE-Scanner" / If you changed settings.json you can jump to 5.
 2. Connect to the Wifi (it should not have a password)
 3. Go to http://192.168.4.1 Setup and change your Wifi and MQTT settings ![device_mgmt]()
-<img src="https://user-images.githubusercontent.com/50184150/121595813-f610a080-ca3e-11eb-9e4c-3ff1596cd167.PNG" width="20%" height="20%">
+<img src="https://user-images.githubusercontent.com/50184150/121597544-235e4e00-ca41-11eb-9c97-cd9453f95768.PNG" width="20%" height="20%">
 
 5. Wait for the ESP32 to restart and check for the IP adress with an scan tool or check the serial connection for the device ip
 6. Connect to the Scanner and fill your Bluetooth details under devices.
