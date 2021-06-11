@@ -48,10 +48,14 @@ It reports the presence of known bluetooth (Beacon) devices and reports it (via 
 7. In the HA App under Settings -> Manage Sensors -> Bluetooth Sensors -> BLE Transmitter -> Enable -> Copy and paste the UUID into the device adress in the ESP32 BLE Scanner under devices
 8. Scanning Results will be published to "ESP32 BLE Scanner/Scan/Your Room Name"
 9. HA Settings:
-> sensor:
+
+```
+sensor:
 - platform: mqtt_room
-  device_id: "6ffa91b91f4f2ad0f4a6dcf5444232f-100-0" #"a6ffa91b91f4f2ad0f4a6dcf5444232f-100-0"
-  name: 'Handy Mathias'
+  device_id: "Your BLE UUID" 
+  name: 'Sensor Name'
   state_topic: 'ESP32 BLE Scanner/Scan/'
   timeout: 60
   away_timeout: 30
+```
+[For more see HA Documentation](https://www.home-assistant.io/integrations/mqtt_room/)
