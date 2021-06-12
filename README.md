@@ -1,13 +1,19 @@
 # ESP-32-BLE-Scanner
 ESP 32 BLE Scanner for Home Assistant
 
-Hello everyone. Welcome to my first project on github. I will try to support this program as good as I can. Please keep in mind that this is my first project, Iam programming in my free time during my 9 to 5 job and Iam not a professional programmer.
-
 ### What does this program do?
 It reports the presence of known bluetooth (Beacon) devices and reports it (via MQTT) to Home Assistant. This works fine with the HA Android App (IOS not tested yet). There are other projects like this outside which are running on a raspberry pi or aren't working anymore or lacking of features I would like to have so I decided to write my own and give a little bit back to the HA community.
 
+### Please keep in mind
+Welcome to my first project on github. I will try to support and fix errors as good as I can. Please keep in mind that this is my first project, Iam programming in my free time during my 9 to 5 job and Iam not a professional programmer.
+
+
+
 
 <img src="https://user-images.githubusercontent.com/50184150/121602995-6839b300-ca48-11eb-886f-b7b27d54ad3e.PNG" width="60%" height="60%">
+<img src="https://user-images.githubusercontent.com/50184150/121775554-bf46a180-cb88-11eb-899e-792d83775994.PNG" width="50%" height="50%">
+
+
 
 ### Features
 - Web UI to set everything up
@@ -21,7 +27,7 @@ It reports the presence of known bluetooth (Beacon) devices and reports it (via 
 ### Roadmap
 - [ ] provide bin for making first flash easier via ESP flash tool
 - [ ] Improve MQTT
-- [ ] Update via Web ui (binary upload)
+- [ ] Make update via Web ui possible(binary upload)
 - [ ] better distance calculation
 - [ ] more network settings (fixed ip etc.)
 - [ ] add bluetooth scanner settings
