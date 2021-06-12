@@ -33,6 +33,7 @@ It reports the presence of known bluetooth (Beacon) devices and reports it (via 
 Click to expand
 </summary>
 
+0. [For Plattformio installation (on Visual Studio Code or Atom.io) see here](https://platformio.org/install)
 1. Download and extract the program
 3. Open the project folder in Plattformio
 4. Open Plattformio menue
