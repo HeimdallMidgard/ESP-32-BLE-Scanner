@@ -20,6 +20,7 @@ It reports the presence of known bluetooth (Beacon) devices and reports it (via 
 
 ### Roadmap
 - [ ] provide bin for making first flash easier via ESP flash tool
+- [ ] Improve MQTT
 - [ ] Update via Web ui (binary upload)
 - [ ] better distance calculation
 - [ ] more network settings (fixed ip etc.)
