@@ -5,7 +5,7 @@ for Home Assistant
 This is basicly a room presence detector. Use it with Home Assistant to trigger automations when you enter a room, disarm your alarm etc. It reports the presence of known bluetooth (Beacon) devices and reports it (via MQTT) to Home Assistant. I designed the program to work together with the HA Android App (IOS not tested yet). 
 
 ### Please keep in mind
-Welcome to my first project on github. I will try to support and fix errors as good as I can. Please keep in mind that this is my first project, Iam programming in my free time during my 9 to 5 job and Iam not a professional programmer.
+This is my first project on github, I am programming in my free time during my 9 to 5 job and I am not a professional programmer. I will try to support and fix errors as good and as fast as I can.
 
 
 
@@ -17,9 +17,9 @@ Welcome to my first project on github. I will try to support and fix errors as g
 
 ### Features
 - Web UI to set everything up
-- MQTT Client
+- MQTT Client to report state to Home Assistant
 - BLE Beacon Scanner for 3 different devices (more to come in the future)
-- works flawless with android Home Assistant App
+- Works fine with Android Home Assistant App
 - Easy Integration into Home Assistant
 - Raw distance calculation
 
