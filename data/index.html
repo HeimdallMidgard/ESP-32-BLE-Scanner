@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+<head>
+<meta charset='utf-8'>
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no"/>
+<title>ESP 32 Bluetooth Scanner for Home Assistant</title>
+<link rel="stylesheet" type="text/css" href="style.css">
+</head>
+
+<script>
+    setInterval(function ( ) {
+      var xhttp = new XMLHttpRequest();
+      xhttp.onreadystatechange = function() {
+        if (this.readyState == 4 && this.status == 200) {
+          var x = document.getElementById("send_logs").value;
+          document.getElementById("send_logs").value = this.responseText + x ;
+        }
+      };
+      xhttp.open("GET", "/send_logs", true);
+      xhttp.send();
+    }, 3000 ) ;
+    </script>
+
+<body>
+
+<div style='text-align:left;display:inline-block;color:#000000;min-width:400px;'>
+        <div style='text-align:center;color:#000000;'>
+            <h2>ESP 32 Bluetooth Scanner</h2>
+            <h3>for Home Assistant</h2>
+</div>
+<div style='text-align:center;'>
+    <a href="/" class="nav_button">Home</a><a href="/devices" class="nav_button">Device Management</a><a href="/setup" class="nav_button">Setup</a>
+</div>
+<br><br>
+
+
+<fieldset>
+    <legend style="padding:8px;text-align:center;border: 20px"><b>&nbsp;Scan Results / Logs:&nbsp;</b>
+    </legend> 
+
+<p>
+<textarea id="send_logs" cols="120" name="logs" rows="15"></textarea>
+</p>
+</fieldset>
+
+</body>
+</html>

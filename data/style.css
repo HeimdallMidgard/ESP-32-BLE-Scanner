@@ -1,0 +1,119 @@
+div,fieldset,input,select { 
+    padding:8px;
+    font-size:1em;
+}
+
+fieldset {
+    background:#FFFFFF;
+}
+
+p {
+    margin:0.5em 0;
+}
+
+input {
+        width:100%;
+        box-sizing:border-box;
+        -webkit-box-sizing:border-box;
+        -moz-box-sizing:border-box;
+        background:#ffffff;
+        color:#000000;
+        border-color: transparent;
+        border-bottom: 2px solid #56C1F1;
+        outline: none;
+        padding:5px;
+        margin:5px 0;
+}
+
+input[type=range] {
+        width:99%;
+}
+
+textarea {
+        font: 13px verdana;
+        width:100%;
+        box-sizing:border-box;
+        -webkit-box-sizing:border-box;
+        -moz-box-sizing:border-box;
+        background:#ffffff;
+        color:#000000;
+        border-color: transparent;
+        outline: none;
+        padding:5px;
+        margin:5px 0;
+}
+
+fieldset {
+        border: 2px #56C1F1 solid;
+        }
+
+body {   
+        text-align:center;
+        font-family:verdana,sans-serif;
+        background:#FFFFFF;
+}
+
+td {     
+        padding:0px;
+}
+
+button {
+        border:0;
+        border-radius:0.3rem;
+        background:#56C1F1;
+        color:#faffff;
+        line-height:2.4rem;
+        font-size:1.2rem;
+        width:100%;
+        -webkit-transition-duration:0.4s;
+        transition-duration:0.4s;
+        cursor:pointer;
+}
+
+button:hover {
+        background:#0e70a4;
+}
+
+.save {
+        background:#56C1F1;
+}
+
+.save:hover {
+        background:#0e70a4;
+}
+
+a { 
+        color:#1fa3ec;
+        text-decoration:underline;
+}
+.p {
+        float:left;
+        text-align:left;
+}
+
+.q {
+        float:right;
+        text-align:right;
+}
+
+.r {
+        border-radius:0.3em;
+        padding:2px;
+        margin:6px 2px;
+}
+
+.nav_button {
+    font: bold 16px verdana;
+    text-decoration: none;
+    background-color: #56C1F1;
+    color: #FFFFFF;
+    padding: 4px 8px 4px 8px;
+    border-top: 2x solid #56C1F1;
+    border-right: 2x solid #4aa7d3;
+    border-bottom: 2px solid #4aa7d3;
+    border-left: 2px solid #56C1F1;
+  }
+
+.nav_button:hover {
+    background-color: #43b6eb;
+}
