@@ -102,7 +102,7 @@ sensor:
 - platform: mqtt_room
   device_id: 'Your BLE UUID'
   name: 'Sensor Name'
-  state_topic: 'ESP32 BLE Scanner/Scan/'
+  state_topic: 'ESP32 BLE Scanner/Scan'
   timeout: 60
   away_timeout: 30
 ```
