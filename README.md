@@ -1,8 +1,8 @@
 # ESP-32-BLE-Scanner
-ESP 32 BLE Scanner for Home Assistant
+for Home Assistant
 
 ### What does this program do?
-It reports the presence of known bluetooth (Beacon) devices and reports it (via MQTT) to Home Assistant. This works fine with the HA Android App (IOS not tested yet). There are other projects like this outside which are running on a raspberry pi or aren't working anymore or lacking of features I would like to have so I decided to write my own and give a little bit back to the HA community.
+This is basicly a room presence detector. Use it with Home Assistant to trigger automations when you enter a room, disarm your alarm etc. It reports the presence of known bluetooth (Beacon) devices and reports it (via MQTT) to Home Assistant. I designed the program to work together with the HA Android App (IOS not tested yet). 
 
 ### Please keep in mind
 Welcome to my first project on github. I will try to support and fix errors as good as I can. Please keep in mind that this is my first project, Iam programming in my free time during my 9 to 5 job and Iam not a professional programmer.
