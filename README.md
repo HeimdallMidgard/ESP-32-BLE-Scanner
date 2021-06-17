@@ -25,7 +25,7 @@ This is my first project on github, I am programming in my free time during my 9
 
 
 ### Roadmap
-- [ ] provide bin for making first flash easier via ESP flash tool
+- [X] provide bin for making first flash easier via ESP flash tool
 - [ ] Improve MQTT
 - [ ] Make update via Web ui possible(binary upload)
 - [ ] better distance calculation
@@ -33,6 +33,36 @@ This is my first project on github, I am programming in my free time during my 9
 - [ ] add bluetooth scanner settings
 - [ ] add support for more bluetooth devices like smartwatches etc.
 - [ ] add support for more devices being saved
+
+
+Settings:
+
+
+
+## How to install (via ESP Download Tool)
+<details>
+<summary>
+Click to expand
+</summary>
+
+
+1. Download and extract the program
+2. [Download ESP32 Download Tool / Flash Download Tools](https://www.espressif.com/en/support/download/other-tools)
+3. Start the Download Tool (ESP32 and Developer Mode)
+4. Plug in your ESP32 and change Com Port according to it
+5. Set the following settings:
+```
+Address for bin: 0
+SPI Speed: 40mhz
+SPI Mode: DIO
+Flash Size: 32Mbit
+DoNotChgBin: Set to true
+```
+6. Click start and the bin will be flashed
+
+</details>
+
+
 
 ## How to install (via Plattformio)
 <details>
