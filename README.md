@@ -131,7 +131,7 @@ Add to your config.yaml:
 sensor:
 - platform: mqtt_room
   device_id: 'Your BLE UUID'
-  name: 'Sensor Name'
+  name: 'Name of your mobile device or your name'
   state_topic: 'ESP32 BLE Scanner/Scan'
   timeout: 60
   away_timeout: 30
