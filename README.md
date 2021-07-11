@@ -26,8 +26,9 @@ This is my first project on github, I am programming in my free time during my 9
 
 ### Roadmap
 - [X] provide bin for making first flash easier via ESP flash tool
-- [ ] Improve MQTT
-- [ ] Make update via Web ui possible(binary upload)
+- [X] improve MQTT and MQTT response
+- [X] online status for the ESP32
+- [ ] make update via Web ui possible(binary upload)
 - [ ] better distance calculation
 - [ ] more network settings (fixed ip etc.)
 - [ ] add bluetooth scanner settings
