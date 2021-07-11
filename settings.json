@@ -1,9 +1,0 @@
-{
-    "ssid":"",
-    "password" : "",
-    "mqttServer" : "",
-    "mqttPort" : "",
-    "mqttUser" : "",
-    "mqttPassword" : "",
-    "room" : ""
- }
