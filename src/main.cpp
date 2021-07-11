@@ -17,7 +17,7 @@
 
 // Connection
 #include <WiFi.h>
-#include <PubSubClient.h>
+#include <AsyncMqttClient.h>
 
 // Scanner
 #define ENDIAN_CHANGE_U16(x) ((((x)&0xFF00) >> 8) + (((x)&0xFF) << 8))
@@ -27,8 +27,10 @@ int scanTime = 5; //In seconds
 BLEScan *pBLEScan;
 
 //MQTT MSG
+char logs[255];
 char log_msg[120];
 char mqtt_msg[120];
+uint16_t msg_error;
 
 // Wifi and MQTT Variables
 const char* ssid;
@@ -39,45 +41,44 @@ const char* mqttUser;
 const char* mqttPassword;
 const char* room;
 
-
 char hostname[60];
 const char *hostname_prefix = "ESP 32 BLE Scanner ";
 
-char scan_topic[100];
+char scan_topic[60];
 const char *mqtt_scan_prefix = "ESP32 BLE Scanner/Scan/";
+const char *status_topic = "ESP32 BLE Scanner/Status/";
 
 
-IPAddress ip(192, 168, 1, 177);
+//IPAddress ip(192, 168, 1, 177);  // not in use
 
 boolean wifi_ap_result;
 
-
-// Wifi and MQTT
+// Wifi
 WiFiClient espClient;
-PubSubClient client(espClient);
+
+// MQTT
+AsyncMqttClient mqttClient;
 
 //Webserver
 AsyncWebServer server(80);
-
-
 int wifi_errors = 0;
 
 // END OF DEFINITION
 
 
 
-
+//
+// FUNCTIONS
+//
 
 void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info){
    
   Serial.println("User connected to Hotspot");
-
 }
  
 void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
    
   Serial.println("User disconnected");
-
 }
 
 void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
@@ -92,7 +93,7 @@ void WiFi_Controller(){
     Serial.println(" ");
     Serial.print("Wifi Errors: ");
     Serial.println(wifi_errors);
-    delay(2000);
+    delay(2500);
 
     if ((wifi_errors < 10) && (wifi_ap_result == false)) {
           Serial.println("Disconnected from WiFi access point");
@@ -116,11 +117,8 @@ void WiFi_Controller(){
           delay(500);
           Serial.print("Event IP address: ");
           Serial.println(WiFi.softAPIP());
-  }
-
+     }
 }
-
-
 
 // Alternative Range Calculation
 /*
@@ -151,6 +149,21 @@ float calculateAccuracy(double txPower, double rssi_calc) {
 	return round(distFl * 100) / 100;
 }
 */
+
+
+void write_to_logs(const char* new_log_entry) {
+
+  strncat(logs, new_log_entry, sizeof(logs));
+  Serial.println(new_log_entry);
+}
+
+
+void check_mqtt_msg(uint16_t error_state) {
+                        
+      if (error_state == 0) { 
+          write_to_logs("Error publishing MQTT Message \n");
+      }
+}
 
 
 // Distance Calculation
@@ -198,13 +211,13 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 
                   StaticJsonDocument<600> doc;
                   DeserializationError json_error = deserializeJson(doc, file);
-                  
-                  // Check for Json Errors
+
                   if (json_error) {
-                    Serial.println("deserializeJson() failed: ");
-                    Serial.println(json_error.c_str());
+                    write_to_logs("DeserializeJson() failed: ");
+                    write_to_logs(json_error.c_str());
+                    write_to_logs(" \n");
                   }
-                    
+
                     for (byte i = 1; i < 3; i = i + 1) {              
                       
                       // Modify Device ID for later checkup
@@ -229,15 +242,15 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
                             float distance = calculateAccuracy(oBeacon.getSignalPower(), advertisedDevice->getRSSI());
                           
                             sprintf(mqtt_msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f } \n", oBeacon.getProximityUUID().toString().c_str(), device.c_str(), distance );
-                            
-                            
                             sprintf(log_msg, "Name: %s Id: %s Distance: %f TX Power: %d RSSI: %d \n", device.c_str(), oBeacon.getProximityUUID().toString().c_str(), distance, oBeacon.getSignalPower(), advertisedDevice->getRSSI() );
-                            
-                            // Publish to Console and Web UI
-                            Serial.printf(log_msg);
 
+                            // Publish to Console and Web UI
+                            write_to_logs(log_msg);
+                            *log_msg = '\0'; // Clear memory
+                            
                             // Publish to MQTT
-                            client.publish(scan_topic, mqtt_msg);
+                            msg_error = mqttClient.publish(scan_topic, 1, false, mqtt_msg);
+                            check_mqtt_msg(msg_error);
                          }
                     }
                 file.close();
@@ -249,30 +262,11 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 };
 
 
-// Reconnect Settings
-void reconnect() {
-  while (!client.connected()) {
-    Serial.println("Attempting MQTT connection...");
-    if (client.connect("ESP32_BLE_presence_detector", mqttUser, mqttPassword )) {      //Name des MQTT Clients fehlt
-      Serial.println("connected");
-      client.publish("esp/test", "Reconnect Bla Bla Bla");
-
-    } else {
-      Serial.print("failed with state ");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-      delay(5000);
-      ESP.restart();
-    }
-  }
-}
-
-
 // Load Settings
 String processor(const String& var){
   
   if(!SPIFFS.begin(true)) {
-    Serial.println("Error initializing SPIFFS");
+    write_to_logs("Error initializing SPIFFS \n ");
     while(true){} // 
   }
 
@@ -345,6 +339,30 @@ String processor(const String& var){
 }
 
 
+
+// connect to mqtt
+
+void connectToMqtt() {
+  write_to_logs("Connecting to MQTT... \n");
+  mqttClient.connect();
+}
+
+void onMqttConnect(bool sessionPresent) {
+  write_to_logs("Connected to MQTT. \n");
+  //write_to_logs("Session present. \n");
+  //write_to_logs(sessionPresent);
+  //write_to_logs(" \n");
+}
+
+void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
+  write_to_logs("Disconnected from MQTT. \n");
+  if (WiFi.isConnected()) {
+    delay(1000);
+    connectToMqtt();
+  }
+}
+
+
 //
 //
 //
@@ -357,12 +375,13 @@ void setup()
 {
 
   Serial.begin(115200);
-  Serial.println("Starting...");
+  Serial.println("");
+  write_to_logs("Starting...\n");
 
 
 // Initialize SPIFFS
   if(!SPIFFS.begin(true)) {
-    Serial.println("Error initializing SPIFFS");
+    write_to_logs("Error initializing SPIFFS \n");
     while(true){} // 
   }
 
@@ -414,57 +433,51 @@ void setup()
 
 
 // Starting WIFI
- WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE); // Dyn IP
- //WiFi.config(ip, INADDR_NONE, INADDR_NONE, INADDR_NONE);  // Fixed IP
- WiFi.setHostname(hostname);
- WiFi.begin(ssid, password);
+  WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE); // Dyn IP
+  //WiFi.config(ip, INADDR_NONE, INADDR_NONE, INADDR_NONE);  // Fixed IP
+  WiFi.setHostname(hostname);
+  WiFi.begin(ssid, password);
 
   WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_STA_CONNECTED);
   WiFi.onEvent(WiFiGotIP, SYSTEM_EVENT_STA_GOT_IP);
   WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_AP_STACONNECTED);
   WiFi.onEvent(WiFiStationDisconnected, SYSTEM_EVENT_AP_STADISCONNECTED);
 
-
-/*
- Serial.printf("Connecting to WiFi..");
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
-    WiFiStationDisconnected();
-  }
-*/
+  mqttClient.onConnect(onMqttConnect);
+  mqttClient.onDisconnect(onMqttDisconnect);
+  mqttClient.setWill(status_topic, 1, true, "offline");
 
   randomSeed(micros());
 
 
 // Start MQTT Connection
+  mqttClient.setServer(mqttServer, mqttPort);
+  mqttClient.setClientId(hostname);
 
-  client.setServer(mqttServer, mqttPort);
-  delay(2000);
-  if (!client.connected()) {
-    Serial.println("Connecting to MQTT...");
+  if(!mqttUser == 0) {
+      Serial.println("No MQTT User set");
+  }else{
+      mqttClient.setCredentials(mqttUser, mqttPassword);
+  }  
+  
+  delay(500);
+  connectToMqtt();
+  delay(500);
 
-    if (client.connect("ESP32_BLE_presence_detector", mqttUser, mqttPassword )) {
+  // Publish online status
+  msg_error = mqttClient.publish(status_topic, 1, true, "online");
+  check_mqtt_msg(msg_error);
 
-      Serial.println("connected");
-
-    } else {
-
-      Serial.println("failed with state ");
-      Serial.print(client.state());
-      delay(2000);
-
-    }
-  }
 
 //  Set up the scanner
-  Serial.println("Starting to Scan...");
+  write_to_logs("Starting to Scan... \n");
   BLEDevice::init("");
   pBLEScan = BLEDevice::getScan(); //create new scan
   pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
   pBLEScan->setActiveScan(true); //active scan uses more power, but get results faster
   pBLEScan->setInterval(100);
   pBLEScan->setWindow(90); // less or equal setInterval value
+
 
 
 //
@@ -485,7 +498,8 @@ server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
 
 // Send Scanning logs to Webserver Mainpage / Index Page
 server.on("/send_logs", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send_P(200, "text/plain", log_msg);
+    request->send(200, "text/plain", logs );
+    *logs = '\0'; //Release memory
 });
 
 // Load Setup Page
@@ -602,7 +616,7 @@ server.on("/devices_get", HTTP_GET, [] (AsyncWebServerRequest *request) {
 
 
 
-// Start server
+// Start Webserver
 server.begin();
 
 
@@ -613,7 +627,9 @@ server.begin();
 void loop()
 {
 
-      client.loop(); // Loop für MQTT und Wifi
+      //client.loop(); // Loop für MQTT und Wifi
+
+      //string_test = "Hello";
 
       if ((WiFi.status() != WL_CONNECTED) && (wifi_ap_result == false)) {
           //reconnect(); //MQTT
