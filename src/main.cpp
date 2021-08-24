@@ -32,22 +32,12 @@ char log_msg[255];
 char mqtt_msg[120];
 uint16_t msg_error;
 
-// Wifi and MQTT Variables
-char ssid[32];
-char password[32];
-char mqttServer[255];
-long mqttPort;
-char mqttUser[255];
-char mqttPassword[255];
-char room[255];
-
-char hostname[60];
-const char *hostname_prefix = "ESP 32 BLE Scanner ";
-
 char scan_topic[60];
 const char *mqtt_scan_prefix = "ESP32 BLE Scanner/Scan/";
 const char *status_topic = "ESP32 BLE Scanner/Status/";
 
+StaticJsonDocument<600> settings;
+StaticJsonDocument<600> devices;
 
 //IPAddress ip(192, 168, 1, 177);  // not in use
 
@@ -71,50 +61,13 @@ int wifi_errors = 0;
 // FUNCTIONS
 //
 
-void write_to_logs(const char* new_log_entry) {
-  strncat(logs, new_log_entry, sizeof(logs));   // Copies to logs to publish in Weblog
-  Serial.println(new_log_entry);
-}
-
-void check_mqtt_msg(uint16_t error_state) {          
-  if (error_state == 0) { 
-    write_to_logs("Error publishing MQTT Message \n");
-  }
-}
-
-void connectToMqtt() {
-  sprintf(log_msg, "Connecting to MQTT @ %s:%lu - %s:%s \n", mqttServer, mqttPort, mqttUser, mqttPassword);
-  write_to_logs(log_msg);
-  mqttClient.connect();
-}
-
-void onMqttConnect(bool sessionPresent) {
-  write_to_logs("Connected to MQTT. \n");
-
-  // Publish online status
-  msg_error = mqttClient.publish(status_topic, 1, true, "online");
-  check_mqtt_msg(msg_error);
-}
-
-void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
-  write_to_logs("Disconnected from MQTT. \n");
-  if (WiFi.isConnected()) {
-    delay(5000);
-    connectToMqtt();
-  }
-}
-
-void connectToWifi() {
-  sprintf(log_msg, "Connecting to WiFi @ %s:%s \n", ssid, password);
-  write_to_logs(log_msg);
-  WiFi.begin(ssid, password);
-}
-
 void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info){
+   
   Serial.println("User connected to Hotspot");
 }
  
 void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
+   
   Serial.println("User disconnected");
 }
 
@@ -122,40 +75,42 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
   Serial.println("WiFi connected");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
-
-  delay(3000);
-  connectToMqtt();
 }
 
 void WiFi_Controller(){
-  if (WiFi.status() != WL_DISCONNECTED || wifi_ap_result == true) {
-    return;
-  }
-  wifi_errors ++;
-  Serial.println(" ");
-  Serial.print("Wifi Errors: ");
-  Serial.println(wifi_errors);
 
-  if ((wifi_errors < 10) && (wifi_ap_result == false)) {
-    Serial.println("Disconnected from WiFi access point");
-    Serial.println("Trying to Reconnect");
-    connectToWifi();
-  } else if ((wifi_errors > 10) && (wifi_ap_result == false)) {
+    wifi_errors ++;
     Serial.println(" ");
-    Serial.println("Starting AP");
+    Serial.print("Wifi Errors: ");
+    Serial.println(wifi_errors);
+    delay(2500);
 
-    WiFi.mode(WIFI_AP);
-    delay(500);
-    WiFi.softAP("ESP32-BLE-Scanner");
-    
-    wifi_ap_result = WiFi.softAP("ESP32-BLE-Scanner");
+    const char *ssid = settings["wifi"]["ssid"];
+    const char *password = settings["wifi"]["password"];
 
-    server.begin();  // Start Webserver
-    
-    delay(500);
-    Serial.print("Event IP address: ");
-    Serial.println(WiFi.softAPIP());
-  }
+    if ((wifi_errors < 10) && (wifi_ap_result == false)) {
+          Serial.println("Disconnected from WiFi access point");
+          Serial.println("Trying to Reconnect");
+          WiFi.begin(ssid, password);
+          delay(500);
+          
+    } else if ((wifi_errors > 10) && (wifi_ap_result == false)) {
+
+          Serial.println(" ");
+          Serial.println("Starting AP");
+
+          WiFi.mode(WIFI_AP);
+          delay(500);
+          WiFi.softAP("ESP32-BLE-Scanner");
+          
+          wifi_ap_result = WiFi.softAP("ESP32-BLE-Scanner");
+      
+          server.begin();  // Start Webserver
+          
+          delay(500);
+          Serial.print("Event IP address: ");
+          Serial.println(WiFi.softAPIP());
+     }
 }
 
 // Alternative Range Calculation
@@ -188,6 +143,22 @@ float calculateAccuracy(double txPower, double rssi_calc) {
 }
 */
 
+
+void write_to_logs(const char* new_log_entry) {
+
+  strncat(logs, new_log_entry, sizeof(logs));   // Copies to logs to publish in Weblog
+  Serial.println(new_log_entry);
+}
+
+
+void check_mqtt_msg(uint16_t error_state) {
+                        
+      if (error_state == 0) { 
+          write_to_logs("Error publishing MQTT Message \n");
+      }
+}
+
+
 // Distance Calculation
 float calculateAccuracy(float txCalibratedPower, float rssi)
  {
@@ -198,6 +169,8 @@ float calculateAccuracy(float txCalibratedPower, float rssi)
     r = r /20;
     return r;
 }
+
+
 
 // Scanner
 
@@ -216,147 +189,63 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 
           if (strManufacturerData.length() == 25 && cManufacturerData[0] == 0x4C && cManufacturerData[1] == 0x00)   // Beacon identifikation
           {
-
             BLEBeacon oBeacon = BLEBeacon();
             oBeacon.setData(strManufacturerData);
 
+            const char *uuid = oBeacon.getProximityUUID().toString().c_str();
+            const char *name;
 
-            // Read saved Devices and check for Errors
-              if(!SPIFFS.begin(true)) {
-                Serial.println("Error initializing SPIFFS");
-                while(true){} // 
+            for(size_t i=0; i<devices.size(); i++){
+              const char *deviceUuid = devices[i]["uuid"];
+              if(strcmp(deviceUuid, uuid)){
+                name = devices[i]["name"];
+                break;
               }
-
-              File file = SPIFFS.open("/devices.json");
-              if(file) {
-
-                  StaticJsonDocument<600> doc;
-                  DeserializationError json_error = deserializeJson(doc, file);
-
-                  if (json_error) {
-                    write_to_logs("DeserializeJson() failed: ");
-                    write_to_logs(json_error.c_str());
-                    write_to_logs(" \n");
-                  }
-
-                    for (byte i = 1; i < 3; i = i + 1) {              
-                      
-                      // Modify Device ID for later checkup
-                      String namey ="device_name";
-                      String devicey ="device_uuid";
-                      devicey = devicey + i;
-                      namey  = namey  + i;
-                      String device = doc[namey];
-
-                      // DEBUG
-                      //Serial.println(namey);
-                      //Serial.println(devicey);
-                      //Serial.print("i: ");
-                      //Serial.println(i);
-
-
-                        // check for the known devices
-                         if ( oBeacon.getProximityUUID().toString() == doc[devicey]  ) {
-
-                            float distance = calculateAccuracy(oBeacon.getSignalPower(), advertisedDevice->getRSSI());
-                          
-                            sprintf(mqtt_msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f } \n", oBeacon.getProximityUUID().toString().c_str(), device.c_str(), distance );
-
-                            // Send Scanning logs to Webserver Mainpage / Index Page  | write_to_logs(mqtt_msg); causing bug
-                            server.on("/send_scan_results", HTTP_GET, [](AsyncWebServerRequest *request){
-                              request->send(200, "text/plain", mqtt_msg);
-                            });
- 
-                            // Publish to MQTT
-                            if(mqttClient.connected()) {
-                              msg_error = mqttClient.publish(scan_topic, 1, false, mqtt_msg);
-                              check_mqtt_msg(msg_error);
-                            }
-                            Serial.println(mqtt_msg);
-                            //*mqtt_msg = '\0'; // Clear memory
-                            }
-                    }
-                file.close(); }
             }
+            if(!name){ return; }
+
+            float distance = calculateAccuracy(oBeacon.getSignalPower(), advertisedDevice->getRSSI());
+            sprintf(mqtt_msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f } \n", uuid, name, distance );
+            // Send Scanning logs to Webserver Mainpage / Index Page  | write_to_logs(mqtt_msg); causing bug
+            server.on("/send_scan_results", HTTP_GET, [](AsyncWebServerRequest *request){
+            request->send(200, "text/plain", mqtt_msg);
+            });
+            // Publish to MQTT
+            msg_error = mqttClient.publish(scan_topic, 1, false, mqtt_msg);
+            check_mqtt_msg(msg_error);
+            Serial.println(mqtt_msg);
+            //*mqtt_msg = '\0'; // Clear memory
+          }
         }
-        return;
-      }
+    }
 };
 
-// Load Settings
-String processor(const String& var){
-  
-  if(!SPIFFS.begin(true)) {
-    write_to_logs("Error initializing SPIFFS \n ");
-    while(true){} // 
+
+// connect to mqtt
+
+void connectToMqtt() {
+  write_to_logs("Connecting to MQTT... \n");
+  mqttClient.connect();
+}
+
+void onMqttConnect(bool sessionPresent) {
+  write_to_logs("Connected to MQTT. \n");
+}
+
+void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
+  write_to_logs("Disconnected from MQTT. \n");
+  if (WiFi.isConnected()) {
+    delay(1000);
+    connectToMqtt();
   }
+}
 
-  File file = SPIFFS.open("/settings.json");
-  if(file) {
-    
-      StaticJsonDocument<600> doc;
-      DeserializationError json_error = deserializeJson(doc, file);  // deserializeJson
-      
-        // Check for Json Errors
-        if (json_error) {
-        Serial.println("deserializeJson() failed: ");
-        Serial.println(json_error.c_str());
-        }
-        
-        File file2 = SPIFFS.open("/devices.json");
-        if(file2) {
-          
-              StaticJsonDocument<600> doc2;
-              DeserializationError json_error = deserializeJson(doc2, file2);
-              
-              // Check for Json Errors
-              if (json_error) {
-              Serial.println("deserializeJson() failed: ");
-              Serial.println(json_error.c_str());
-              }
 
-              if(var == "SSID"){
-                return doc["ssid"];
-              }
-              else if(var == "PASSWORD"){
-                return doc["password"];
-              }
-              else if(var == "ROOM"){
-                return doc["room"];
-              }
-              else if(var == "MQTTSERVER"){
-                return doc["mqttServer"];
-              }
-              else if(var == "MQTTPORT"){
-                return doc["mqttPort"];
-              }
-              else if(var == "MQTTUSER"){
-                return doc["mqttUser"];
-              }
-              else if(var == "MQTTPASSWORD"){
-                return doc["mqttPassword"];
-              }
-              else if(var == "DEVICENAME1"){
-                return doc2["device_name1"];
-              }
-              else if(var == "DEVICENAME2"){
-                return doc2["device_name2"];
-              }
-              else if(var == "DEVICENAME3"){
-                return doc2["device_name3"];
-              }
-              else if(var == "UUID1"){
-                return doc2["device_uuid1"];
-              }
-              else if(var == "UUID2"){
-                return doc2["device_uuid2"];
-              }
-              else if(var == "UUID3"){
-                return doc2["device_uuid3"];
-              }
-          } file2.close();
-      } file.close();
-  return String();
+void reboot()
+{
+  Serial.println("Rebooting.");
+  delay(1000);
+  ESP.restart();
 }
 
 
@@ -384,56 +273,60 @@ void setup()
 
 
   // Load Settings from SPIFFS for WIFI Start
-  File file = SPIFFS.open("/settings.json");
-  if(file) {
-    
-        StaticJsonDocument<600> doc;
-        DeserializationError json_error = deserializeJson(doc, file);
-        
-        // Check for Json Errors
-        if (json_error) {
-          Serial.println("deserializeJson() failed: ");
-          Serial.println(json_error.c_str());
-        }
-        
-        strncpy(ssid, doc["ssid"], sizeof(ssid));
-        strncpy(password, doc["password"], sizeof(password));
-        strncpy(mqttServer, doc["mqttServer"], sizeof(mqttServer));
-        strncpy(mqttUser, doc["mqttUser"], sizeof(mqttUser));
-        strncpy(mqttPassword, doc["mqttPassword"], sizeof(mqttPassword));
-        strncpy(room, doc["room"], sizeof(room));
-        mqttPort = doc["mqttPort"];
+  File settingsFile = SPIFFS.open("/settings.json");
+  if (settingsFile)
+  {
+    DeserializationError json_error = deserializeJson(settings, settingsFile);
+    if (json_error)
+    {
+      Serial.println("deserializeJson() for settings.json failed: ");
+      Serial.println(json_error.c_str());
+      reboot();
+    }
+  } settingsFile.close();
 
-        // Combine Room and Prefix to Hostname
-        strcpy(hostname,hostname_prefix);
-        strcat(hostname,room);
-        
-        // Combine Room and Prefix to MQTT topic
-        strcpy(scan_topic,mqtt_scan_prefix);
-        strcat(scan_topic,room);
+  File devicesFile = SPIFFS.open("/devices.json");
+  if (devicesFile)
+  {
+    DeserializationError json_error = deserializeJson(devices, devicesFile);
+    if (json_error)
+    {
+      Serial.println("deserializeJson() for devices.json failed: ");
+      Serial.println(json_error.c_str());
+      reboot();
+    }
+  } devicesFile.close();
 
-        // Print settings in Serial Connection
-        Serial.println(" ");
-        Serial.println("SPIFFS Data:");
-        Serial.println(ssid);
-        Serial.println(password);
-        Serial.println(mqttServer);
-        Serial.println(mqttPort);
-        Serial.println(mqttUser);
-        Serial.println(mqttPassword);
-        Serial.println(room);
-        Serial.println(hostname);
-        Serial.println(scan_topic);
-        Serial.println("__________________________________________________________");
+  const char *ssid         = settings["network"]["ssid"];
+  const char *password     = settings["network"]["password"];
+  const char *hostname     = settings["network"]["hostname"];
+  const char *mqttHost     = settings["mqtt"]["host"];
+  long        mqttPort     = settings["mqtt"]["port"];
+  const char *mqttUser     = settings["mqtt"]["user"];
+  const char *mqttPassword = settings["mqtt"]["password"];
 
-  }  file.close();
+  // Combine Room and Prefix to MQTT topic
+  strcpy(scan_topic,mqtt_scan_prefix);
+  strcat(scan_topic,settings["device"]["room"]);
 
+  Serial.println(" ");
+  Serial.println("SPIFFS Data:");
+  Serial.println(ssid);
+  Serial.println(password);
+  Serial.println(hostname);
+  Serial.println(mqttHost);
+  Serial.println(mqttPort);
+  Serial.println(mqttUser);
+  Serial.println(mqttPassword);
+  Serial.println(scan_topic);
+  Serial.println("__________________________________________________________");
 
 // Starting WIFI
+
   WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE); // Dyn IP
   //WiFi.config(ip, INADDR_NONE, INADDR_NONE, INADDR_NONE);  // Fixed IP
   WiFi.setHostname(hostname);
-  connectToWifi();
+  WiFi.begin(ssid, password);
 
   WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_STA_CONNECTED);
   WiFi.onEvent(WiFiGotIP, SYSTEM_EVENT_STA_GOT_IP);
@@ -446,18 +339,27 @@ void setup()
 
   randomSeed(micros());
 
-  // Setup MQTT Connection
-  mqttClient.setServer(mqttServer, mqttPort);
+
+// Start MQTT Connection
+  mqttClient.setServer(mqttHost, mqttPort);
   mqttClient.setClientId(hostname);
 
   if(strlen(mqttUser) == 0) {
-    Serial.println("No MQTT User set");
+      Serial.println("No MQTT User set");
   }else{
-    mqttClient.setCredentials(mqttUser, mqttPassword);
+      mqttClient.setCredentials(mqttUser, mqttPassword);
   }  
+  
+  delay(500);
+  connectToMqtt();
+  delay(500);
+
+  // Publish online status
+  msg_error = mqttClient.publish(status_topic, 1, true, "online");
+  check_mqtt_msg(msg_error);
 
 
-//  Set up the scanner
+// Set up the scanner
   write_to_logs("Starting to Scan... \n");
   BLEDevice::init("");
   pBLEScan = BLEDevice::getScan(); //create new scan
@@ -474,14 +376,23 @@ void setup()
 //
 //
 
+// Serve css
+server.serveStatic("/css", SPIFFS, "/web/css");
+
+// Serve js
+server.serveStatic("/js", SPIFFS, "/web/js");
+
 // Webserver Mainpage
 server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(SPIFFS, "/index.html", String(), false, processor);
+    request->send(SPIFFS, "/index.html", String(), false);
 }); 
 
   // Load CSS
 server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(SPIFFS, "/style.css", "text/css");
+    char *stylesheet = "/mini-";
+    strcat(stylesheet, settings["ui"]["style"]);
+    strcat(stylesheet, ".min.css");
+    request->send(SPIFFS, stylesheet, "text/css");
 });
 
 // Send Scanning logs to Webserver Mainpage / Index Page
@@ -490,139 +401,93 @@ server.on("/send_logs", HTTP_GET, [](AsyncWebServerRequest *request){
     *logs = '\0'; //Release memory
 });
 
-// Load Setup Page
-server.on("/setup", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(SPIFFS, "/setup.html", String(), false, processor);
+// Settings page
+server.on("/settings", HTTP_GET, [](AsyncWebServerRequest *request){
+  request->send(SPIFFS, "/web/settings.html", String(), false);
 });
-  
-// Save Setup Data in SPIFFS
-server.on("/setup_get", HTTP_GET, [] (AsyncWebServerRequest *request) {
-        //String message;
-        String input_room          = request->getParam("room")->value();
-        String input_ssid          = request->getParam("ssid")->value();
-        String input_password      = request->getParam("password")->value();
-        String input_mqttServer    = request->getParam("mqttServer")->value();
-        String input_mqttPort      = request->getParam("mqttPort")->value();
-        String input_mqttUser      = request->getParam("mqttUser")->value();
-        String input_mqttPassword  = request->getParam("mqttPassword")->value();
 
-        //Debug
-        //request->send(200, "text/plain", "Hello, GET: " + input_room + input_ssid + input_password + input_mqttServer + input_mqttPort + input_mqttUser + input_mqttPassword);
+// Send settings json
+server.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest *request){
+  char json[1000];
+  serializeJson(settings, json);
+  request->send(200, "application/json", json);
+});
 
-        // Saving in SPIFFS
-        File outfile = SPIFFS.open("/settings.json","w");
-        StaticJsonDocument<1000> doc;
-        doc["room"]         = input_room;
-        doc["ssid"]         = input_ssid;
-        doc["password"]     = input_password;
-        doc["mqttServer"]   = input_mqttServer;
-        doc["mqttPort"]     = input_mqttPort;
-        doc["mqttUser"]     = input_mqttUser;
-        doc["mqttPassword"] = input_mqttPassword;
+// Save settings json
+server.on("/api/settings", HTTP_POST, [](AsyncWebServerRequest *request){
+  Serial.println("POST Request to /api/settings");
+  bool saved = false;
+  if(request->hasParam("settings", true)){
+    AsyncWebParameter* p = request->getParam("settings", true);
+    DeserializationError json_error = deserializeJson(settings, p->value());
+    if(json_error)
+    {
+      write_to_logs("DeserializeJson() failed: ");
+      write_to_logs(json_error.c_str());
+      write_to_logs(" \n");
+    }
+    else
+    {
+      File outfile = SPIFFS.open("/settings2.json","w");
+      if(serializeJson(settings, outfile)!=0)
+      {
+        request->send(200);
+        saved = true;
+      } outfile.close();
+    }
+  }
+  else { Serial.println("Has no settings param"); }
+  if(!saved)
+  {
+    Serial.println("Unable to save settings");
+    request->send(503);
+  }
+});
 
-        if(serializeJson(doc, outfile)==0) {
-              request->send(200, "text/html", "<div style='text-align:center;'>Failed to save data. Rebooting</div>");
-              Serial.println("Failed to write settings to SPIFFS file");
-        } else {
-        
-              // Send MSG with Data
-              request->send(200, "text/html", "<div style='text-align:center;'>Settings saved. Rebooting</div>");
-              
-              //Debug
-              Serial.println("New Config set: ");
-              Serial.println(input_ssid);
-              Serial.println(input_password);
-              Serial.println(input_mqttServer);
-              Serial.println(input_mqttPort);
-              Serial.println(input_mqttUser);
-              Serial.println(input_mqttPassword);
-              Serial.println(input_room);
+// Send devices json
+server.on("/api/devices", HTTP_GET, [](AsyncWebServerRequest *request){
+  char json[1000];
+  serializeJson(devices, json);
+  Serial.println(json);
+  request->send(200, "application/json", json);
+});
 
-        } outfile.close();
-      
+// Reset
+server.on("/api/reset", HTTP_GET, [](AsyncWebServerRequest *request){
   Serial.println("Rebooting.");
   delay(1000);
   ESP.restart();
-
 });
 
-// Load Setup Page
+
+// Load Devices Page
 server.on("/devices", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(SPIFFS, "/devices.html", String(), false, processor);
+    request->send(SPIFFS, "/devices.html", String(), false);
 });
-
-
-
-// Save Setup Data in SPIFFS
-server.on("/devices_get", HTTP_GET, [] (AsyncWebServerRequest *request) {
-
-        //String message;
-        String input_device_name1     = request->getParam("device_name1")->value();
-        String input_uuid1            = request->getParam("uuid1")->value();
-        String input_device_name2     = request->getParam("device_name2")->value();
-        String input_uuid2            = request->getParam("uuid2")->value();
-        String input_device_name3     = request->getParam("device_name3")->value();
-        String input_uuid3            = request->getParam("uuid3")->value();
-
-        //Debug
-        //request->send(200, "text/html", "Hello, GET: " + input_device_name1 + input_uuid1 + input_device_name2 + input_uuid2 + input_device_name3 + input_uuid3);
-
-        // Saving in SPIFFS
-        File outfile = SPIFFS.open("/devices.json","w");
-        StaticJsonDocument<1000> doc;
-        doc["device_name1"]   = input_device_name1;
-        doc["device_uuid1"]   = input_uuid1;
-        doc["device_name2"]   = input_device_name2;
-        doc["device_uuid2"]   = input_uuid2;
-        doc["device_name3"]   = input_device_name3;
-        doc["device_uuid3"]   = input_uuid3;
-
-        if(serializeJson(doc, outfile)==0) {
-            request->send(200, "text/html", "<div style='text-align:center;'>Failed to save data. Rebooting</div>");
-            Serial.println("Failed to write settings to SPIFFS file");
-        } else {
-
-            // Send MSG with Data
-            request->send(200, "text/html", "<div style='text-align:center;'>Settings saved. Rebooting</div>");
-            
-            //Debug
-            Serial.println("Devices saved: ");
-            Serial.println(input_device_name1);
-            Serial.println(input_uuid1);
-            Serial.println(input_device_name2);
-            Serial.println(input_uuid2);
-            Serial.println(input_device_name3);
-            Serial.println(input_uuid3);
-
-        } outfile.close();  
-      
-    Serial.println("Rebooting.");
-    delay(1000);
-    ESP.restart();
-
-});
-
 
 
 // Start Webserver
 server.begin();
 
 
-} // SETUP ENDE
+} // SETUP END
 
 
 
 void loop()
 {
-  if ((WiFi.status() == WL_DISCONNECTED) && (wifi_ap_result == false)) {
-    Serial.print("Current WiFi status: ");
-    Serial.println(WiFi.status());
-    delay(5000);
-    WiFi_Controller();
-  } else if ((WiFi.status() == WL_CONNECTED)) {
-    // Scanner
-    BLEScanResults foundDevices = pBLEScan->start(scanTime, false);
-    Serial.println("_____________________________________");
-    pBLEScan->clearResults(); // delete results fromBLEScan buffer to release memory
-  }
+      if ((WiFi.status() == WL_DISCONNECTED) && (wifi_ap_result == false)) {
+
+        Serial.println(WiFi.status());
+          WiFi_Controller();
+
+          
+      }else if ((WiFi.status() == WL_CONNECTED)) {
+
+        // Scanner
+          BLEScanResults foundDevices = pBLEScan->start(scanTime, false);
+          Serial.println("_____________________________________");
+          pBLEScan->clearResults(); // delete results fromBLEScan buffer to release memory
+      }
+
 }
