@@ -7,19 +7,35 @@
 <link rel="stylesheet" type="text/css" href="style.css">
 </head>
 
+
+
 <script>
-    setInterval(function ( ) {
-      var xhttp = new XMLHttpRequest();
-      xhttp.onreadystatechange = function() {
-        if (this.readyState == 4 && this.status == 200) {
-          var x = document.getElementById("send_logs").value;
-          document.getElementById("send_logs").value = this.responseText + x ;
-        }
-      };
-      xhttp.open("GET", "/send_logs", true);
-      xhttp.send();
-    }, 1000 ) ;
-    </script>
+  setInterval(function ( ) {
+    var xhttp = new XMLHttpRequest();
+    xhttp.onreadystatechange = function() {
+      
+        var x = document.getElementById("logs").value;
+        document.getElementById("logs").value = this.responseText + x ;
+
+    };
+    xhttp.open("GET", "/send_scan_results", true);
+    xhttp.send();
+
+    var yhttp = new XMLHttpRequest();
+    yhttp.onreadystatechange = function() {
+      
+        var y = document.getElementById("logs").value;
+        document.getElementById("logs").value = this.responseText + y ;
+
+    };
+    yhttp.open("GET", "/send_logs", true);
+    yhttp.send();
+
+  }, 1500 ) ;
+  </script>
+
+
+
 
 <body>
 
@@ -39,7 +55,7 @@
     </legend> 
 
 <p>
-<textarea id="send_logs" cols="120" name="logs" rows="15"></textarea>
+<textarea id="logs" cols="120" name="logs" rows="15"></textarea>
 </p>
 </fieldset>
 
