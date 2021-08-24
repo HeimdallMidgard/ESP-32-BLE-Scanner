@@ -1,9 +1,19 @@
 {
-    "ssid":"",
-    "password" : "",
-    "mqttServer" : "",
-    "mqttPort" : "",
-    "mqttUser" : "",
-    "mqttPassword" : "",
-    "room" : ""
+    "device": {
+        "room": ""
+    },
+    "network": {
+        "ssid": "",
+        "password": "",
+        "hostname": "ESP32-BLE-Scanner-RENAMEME"
+    },
+    "mqtt": {
+        "host" : "",
+        "port" : "1883",
+        "user" : "",
+        "password" : ""
+    },
+    "ui": {
+        "style": "default"
+    }
  }
