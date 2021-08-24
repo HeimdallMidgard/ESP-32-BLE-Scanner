@@ -23,12 +23,12 @@
 #define ENDIAN_CHANGE_U16(x) ((((x)&0xFF00) >> 8) + (((x)&0xFF) << 8))
 
 // Scanner Variables
-int scanTime = 5; //In seconds
+int scanTime = 5; //In seconds //5
 BLEScan *pBLEScan;
 
 //MQTT MSG
 char logs[255];
-char log_msg[120];
+char log_msg[255];
 char mqtt_msg[120];
 uint16_t msg_error;
 
@@ -153,7 +153,7 @@ float calculateAccuracy(double txPower, double rssi_calc) {
 
 void write_to_logs(const char* new_log_entry) {
 
-  strncat(logs, new_log_entry, sizeof(logs));
+  strncat(logs, new_log_entry, sizeof(logs));   // Copies to logs to publish in Weblog
   Serial.println(new_log_entry);
 }
 
@@ -200,6 +200,7 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
             BLEBeacon oBeacon = BLEBeacon();
             oBeacon.setData(strManufacturerData);
 
+
             // Read saved Devices and check for Errors
               if(!SPIFFS.begin(true)) {
                 Serial.println("Error initializing SPIFFS");
@@ -233,28 +234,27 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
                       //Serial.print("i: ");
                       //Serial.println(i);
 
+
                         // check for the known devices
                          if ( oBeacon.getProximityUUID().toString() == doc[devicey]  ) {
 
-                            // Debug
-                            // Serial.printf("ID: %04X Major: %d Minor: %d UUID: %s Power: %d\n", oBeacon.getManufacturerId(), ENDIAN_CHANGE_U16(oBeacon.getMajor()), ENDIAN_CHANGE_U16(oBeacon.getMinor()), oBeacon.getProximityUUID().toString().c_str(), oBeacon.getSignalPower() );
-                            
                             float distance = calculateAccuracy(oBeacon.getSignalPower(), advertisedDevice->getRSSI());
                           
                             sprintf(mqtt_msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f } \n", oBeacon.getProximityUUID().toString().c_str(), device.c_str(), distance );
-                            sprintf(log_msg, "Name: %s Id: %s Distance: %f TX Power: %d RSSI: %d \n", device.c_str(), oBeacon.getProximityUUID().toString().c_str(), distance, oBeacon.getSignalPower(), advertisedDevice->getRSSI() );
 
-                            // Publish to Console and Web UI
-                            write_to_logs(log_msg);
-                            *log_msg = '\0'; // Clear memory
-                            
+                            // Send Scanning logs to Webserver Mainpage / Index Page  | write_to_logs(mqtt_msg); causing bug
+                            server.on("/send_scan_results", HTTP_GET, [](AsyncWebServerRequest *request){
+                            request->send(200, "text/plain", mqtt_msg);
+                            });
+ 
                             // Publish to MQTT
                             msg_error = mqttClient.publish(scan_topic, 1, false, mqtt_msg);
                             check_mqtt_msg(msg_error);
-                         }
+                            Serial.println(mqtt_msg);
+                            //*mqtt_msg = '\0'; // Clear memory
+                            }
                     }
-                file.close();
-                }
+                file.close(); }
             }
         }
         return;
@@ -349,9 +349,6 @@ void connectToMqtt() {
 
 void onMqttConnect(bool sessionPresent) {
   write_to_logs("Connected to MQTT. \n");
-  //write_to_logs("Session present. \n");
-  //write_to_logs(sessionPresent);
-  //write_to_logs(" \n");
 }
 
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
@@ -454,7 +451,7 @@ void setup()
   mqttClient.setServer(mqttServer, mqttPort);
   mqttClient.setClientId(hostname);
 
-  if(!mqttUser == 0) {
+  if(strlen(mqttUser) == 0) {
       Serial.println("No MQTT User set");
   }else{
       mqttClient.setCredentials(mqttUser, mqttPassword);
@@ -478,7 +475,7 @@ void setup()
   pBLEScan->setInterval(100);
   pBLEScan->setWindow(90); // less or equal setInterval value
 
-
+  delay(500);
 
 //
 //
@@ -626,14 +623,11 @@ server.begin();
 
 void loop()
 {
+      if ((WiFi.status() == WL_DISCONNECTED) && (wifi_ap_result == false)) {
 
-      //client.loop(); // Loop für MQTT und Wifi
-
-      //string_test = "Hello";
-
-      if ((WiFi.status() != WL_CONNECTED) && (wifi_ap_result == false)) {
-          //reconnect(); //MQTT
+        Serial.println(WiFi.status());
           WiFi_Controller();
+
           
       }else if ((WiFi.status() == WL_CONNECTED)) {
 
