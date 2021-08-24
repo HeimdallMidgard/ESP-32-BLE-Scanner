@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,user-scalable=no"
+    />
+    <title>ESP 32 Bluetooth Scanner for Home Assistant</title>
+    <link rel="stylesheet" type="text/css" href="/css/mini-default.min.css" />
+    <script src="/js/settings.js"></script>
+    <script defer src="/js/alpine.3.2.4.min.js"></script>
+  </head>
+
+  <body x-data="getSettings()">
+    <header>
+      <a href="#" class="logo">ESP32 BLE Scanner</a>
+      <span style="text-align: right">
+        <a href="/" class="button">Home</a>
+        <a href="/devices" class="button">Device Management</a>
+        <a href="/settings" class="button">Settings</a>
+      </span>
+    </header>
+    <div class="container">
+      <div class="row">
+        <div
+          class="col-sm-12 col-md-8 col-lg-6"
+          style="margin-left: auto; margin-right: auto"
+        >
+          <h3>Settings</h3>
+          <form>
+            <template
+              x-if="settings  && section"
+              x-for="[section, values] in Object.entries(settings)"
+              :key="section"
+            >
+              <div class="row">
+                <div class="col-sm">
+                  <fieldset>
+                    <legend
+                      x-text="section"
+                      style="text-transform: capitalize"
+                    ></legend>
+                    <template
+                      x-for="[setting, value] in Object.entries(settings[section])"
+                    >
+                      <div class="row responsive-label">
+                        <div class="col-sm-12 col-md-3 col-lg-1">
+                          <label
+                            :for="setting"
+                            x-text="setting"
+                            style="text-transform: capitalize"
+                          ></label>
+                        </div>
+                        <div class="col-sm">
+                          <template
+                            x-if="options[section] !== undefined && options[section][setting] !== undefined"
+                          >
+                            <select
+                              x-model="settings[section][setting]"
+                              style="width: 85%"
+                            >
+                              <template
+                                x-for="option in options[section][setting]['options']"
+                              >
+                                <option
+                                  :key="option"
+                                  :value="option"
+                                  :selected="option === settings[section][setting]"
+                                  x-text="option"
+                                ></option>
+                              </template>
+                            </select>
+                          </template>
+                          <template
+                            x-if="options[section] === undefined || options[section][setting] === undefined"
+                          >
+                            <input
+                              :id="setting"
+                              :value="value"
+                              :placeholder="setting"
+                              style="width: 85%"
+                            />
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+                  </fieldset>
+                </div>
+              </div>
+            </template>
+            <button
+              name="save"
+              type="button"
+              class="button save"
+              @click="save()"
+            >
+              Save
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
