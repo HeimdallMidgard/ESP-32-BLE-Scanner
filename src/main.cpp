@@ -413,15 +413,7 @@ server.serveStatic("/js", SPIFFS, "/web/js");
 
 // Webserver Mainpage
 server.on("/", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(SPIFFS, "/index.html", String(), false);
-}); 
-
-  // Load CSS
-server.on("/style.css", HTTP_GET, [](AsyncWebServerRequest *request){
-    char *stylesheet = "/mini-";
-    strcat(stylesheet, settings["ui"]["style"]);
-    strcat(stylesheet, ".min.css");
-    request->send(SPIFFS, stylesheet, "text/css");
+    request->send(SPIFFS, "/web/index.html", String(), false);
 });
 
 // Send Scanning logs to Webserver Mainpage / Index Page
