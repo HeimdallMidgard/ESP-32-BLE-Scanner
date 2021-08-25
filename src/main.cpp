@@ -197,18 +197,20 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 
             for(size_t i=0; i<devices.size(); i++){
               const char *deviceUuid = devices[i]["uuid"];
-              if(strcmp(deviceUuid, uuid)){
+              if(strcmp(deviceUuid, uuid)==0){
                 name = devices[i]["name"];
                 break;
               }
             }
             if(!name){ return; }
 
-            float distance = calculateAccuracy(oBeacon.getSignalPower(), advertisedDevice->getRSSI());
-            sprintf(mqtt_msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f } \n", uuid, name, distance );
+            int rssi = advertisedDevice->getRSSI();
+            int8_t power = oBeacon.getSignalPower();
+            float distance = calculateAccuracy(power, rssi);
+            sprintf(mqtt_msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f, \"rssi\": %i, \"signalPower\": %i } \n", uuid, name, distance, rssi, power );
             // Send Scanning logs to Webserver Mainpage / Index Page  | write_to_logs(mqtt_msg); causing bug
             server.on("/send_scan_results", HTTP_GET, [](AsyncWebServerRequest *request){
-            request->send(200, "text/plain", mqtt_msg);
+              request->send(200, "text/plain", mqtt_msg);
             });
             // Publish to MQTT
             msg_error = mqttClient.publish(scan_topic, 1, false, mqtt_msg);
@@ -239,7 +241,6 @@ void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
     connectToMqtt();
   }
 }
-
 
 void reboot()
 {
