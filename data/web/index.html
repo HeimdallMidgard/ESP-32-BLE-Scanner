@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,user-scalable=no"
+    />
+    <title>ESP 32 Bluetooth Scanner for Home Assistant</title>
+    <link rel="stylesheet" type="text/css" href="/css/mini-default.min.css" />
+    <script src="/js/index.js"></script>
+    <script defer src="/js/alpine.3.2.4.min.js"></script>
+  </head>
+
+  <body>
+    <header>
+      <a href="#" class="logo">ESP32 BLE Scanner</a>
+      <span style="text-align: right">
+        <a href="/" class="button">Home</a>
+        <a href="/devices" class="button">Device Management</a>
+        <a href="/settings" class="button">Settings</a>
+      </span>
+    </header>
+    <div class="container">
+      <div class="row">
+        <div
+          class="col-sm-12 col-md-8 col-lg-6"
+          style="margin-left: auto; margin-right: auto"
+        >
+          <fieldset>
+            <legend>Scan Results / Logs</legend>
+            <textarea id="logs" name="logs" rows="15" style="width: 100%;"></textarea>
+          </fieldset>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
