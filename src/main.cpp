@@ -249,6 +249,34 @@ void reboot()
   ESP.restart();
 }
 
+bool savePostedJson(AsyncWebParameter* p, StaticJsonDocument<600> json, const char filename[])
+{
+  DeserializationError json_error = deserializeJson(json, p->value());
+  if(json_error)
+  {
+    write_to_logs("DeserializeJson() failed: ");
+    write_to_logs(json_error.c_str());
+    write_to_logs(" \n");
+  }
+  else
+  {
+    File file = SPIFFS.open(filename,"w");
+    if(file)
+    {
+      if(serializeJson(json, file) > 0)
+      {
+        Serial.printf("Saved to %s\n", filename);
+        return true;
+      }
+    }
+    else
+    {
+      Serial.printf("File not found: %s", filename);
+    } file.close();
+  }
+  return false;
+}
+
 
 //
 //
@@ -419,38 +447,18 @@ server.on("/api/settings", HTTP_POST, [](AsyncWebServerRequest *request){
   Serial.println("POST Request to /api/settings");
   bool saved = false;
   if(request->hasParam("settings", true)){
-    AsyncWebParameter* p = request->getParam("settings", true);
-    DeserializationError json_error = deserializeJson(settings, p->value());
-    if(json_error)
-    {
-      write_to_logs("DeserializeJson() failed: ");
-      write_to_logs(json_error.c_str());
-      write_to_logs(" \n");
-    }
-    else
-    {
-      File outfile = SPIFFS.open("/settings2.json","w");
-      if(serializeJson(settings, outfile)!=0)
-      {
-        request->send(200);
-        saved = true;
-      } outfile.close();
-    }
+    saved = savePostedJson(request->getParam("settings", true), settings, "/settings.json");
   }
   else { Serial.println("Has no settings param"); }
-  if(!saved)
+  if(saved)
+  {
+    request->send(200);
+  }
+  else
   {
     Serial.println("Unable to save settings");
     request->send(503);
   }
-});
-
-// Send devices json
-server.on("/api/devices", HTTP_GET, [](AsyncWebServerRequest *request){
-  char json[1000];
-  serializeJson(devices, json);
-  Serial.println(json);
-  request->send(200, "application/json", json);
 });
 
 // Reset
@@ -463,7 +471,33 @@ server.on("/api/reset", HTTP_GET, [](AsyncWebServerRequest *request){
 
 // Load Devices Page
 server.on("/devices", HTTP_GET, [](AsyncWebServerRequest *request){
-    request->send(SPIFFS, "/devices.html", String(), false);
+    request->send(SPIFFS, "/web/devices.html", String(), false);
+});
+
+// Send devices json
+server.on("/api/devices", HTTP_GET, [](AsyncWebServerRequest *request){
+  char json[1000];
+  serializeJson(devices, json);
+  Serial.println(json);
+  request->send(200, "application/json", json);
+});
+
+// Save devices json
+server.on("/api/devices", HTTP_POST, [](AsyncWebServerRequest *request){
+  Serial.println("POST Request to /api/devices");
+  bool saved = false;
+  if(request->hasParam("devices", true)){
+    saved = savePostedJson(request->getParam("devices", true), devices, "/devices.json");
+  }
+  else { Serial.println("Has no devices param"); }
+  if(saved)
+  {
+    request->send(200);
+  }
+  {
+    Serial.println("Unable to save devices");
+    request->send(503);
+  }
 });
 
 
@@ -486,9 +520,12 @@ void loop()
       }else if ((WiFi.status() == WL_CONNECTED)) {
 
         // Scanner
+        if(!pBLEScan->isScanning())
+        {
           BLEScanResults foundDevices = pBLEScan->start(scanTime, false);
           Serial.println("_____________________________________");
           pBLEScan->clearResults(); // delete results fromBLEScan buffer to release memory
+        }
       }
 
 }
