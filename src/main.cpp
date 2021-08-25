@@ -71,6 +71,38 @@ int wifi_errors = 0;
 // FUNCTIONS
 //
 
+void write_to_logs(const char* new_log_entry) {
+  strncat(logs, new_log_entry, sizeof(logs));   // Copies to logs to publish in Weblog
+  Serial.println(new_log_entry);
+}
+
+void check_mqtt_msg(uint16_t error_state) {          
+  if (error_state == 0) { 
+      write_to_logs("Error publishing MQTT Message \n");
+  }
+}
+
+void connectToMqtt() {
+  write_to_logs("Connecting to MQTT... \n");
+  mqttClient.connect();
+}
+
+void onMqttConnect(bool sessionPresent) {
+  write_to_logs("Connected to MQTT. \n");
+
+  // Publish online status
+  msg_error = mqttClient.publish(status_topic, 1, true, "online");
+  check_mqtt_msg(msg_error);
+}
+
+void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
+  write_to_logs("Disconnected from MQTT. \n");
+  if (WiFi.isConnected()) {
+    delay(1000);
+    connectToMqtt();
+  }
+}
+
 void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info){
    
   Serial.println("User connected to Hotspot");
@@ -85,6 +117,9 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
   Serial.println("WiFi connected");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+
+  delay(1000);
+  connectToMqtt();
 }
 
 void WiFi_Controller(){
@@ -150,22 +185,6 @@ float calculateAccuracy(double txPower, double rssi_calc) {
 }
 */
 
-
-void write_to_logs(const char* new_log_entry) {
-
-  strncat(logs, new_log_entry, sizeof(logs));   // Copies to logs to publish in Weblog
-  Serial.println(new_log_entry);
-}
-
-
-void check_mqtt_msg(uint16_t error_state) {
-                        
-      if (error_state == 0) { 
-          write_to_logs("Error publishing MQTT Message \n");
-      }
-}
-
-
 // Distance Calculation
 float calculateAccuracy(float txCalibratedPower, float rssi)
  {
@@ -176,8 +195,6 @@ float calculateAccuracy(float txCalibratedPower, float rssi)
     r = r /20;
     return r;
 }
-
-
 
 // Scanner
 
@@ -261,7 +278,6 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
       }
 };
 
-
 // Load Settings
 String processor(const String& var){
   
@@ -336,27 +352,6 @@ String processor(const String& var){
           } file2.close();
       } file.close();
   return String();
-}
-
-
-
-// connect to mqtt
-
-void connectToMqtt() {
-  write_to_logs("Connecting to MQTT... \n");
-  mqttClient.connect();
-}
-
-void onMqttConnect(bool sessionPresent) {
-  write_to_logs("Connected to MQTT. \n");
-}
-
-void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
-  write_to_logs("Disconnected from MQTT. \n");
-  if (WiFi.isConnected()) {
-    delay(1000);
-    connectToMqtt();
-  }
 }
 
 
@@ -446,24 +441,15 @@ void setup()
 
   randomSeed(micros());
 
-
-// Start MQTT Connection
+  // Setup MQTT Connection
   mqttClient.setServer(mqttServer, mqttPort);
   mqttClient.setClientId(hostname);
 
   if(strlen(mqttUser) == 0) {
-      Serial.println("No MQTT User set");
+    Serial.println("No MQTT User set");
   }else{
-      mqttClient.setCredentials(mqttUser, mqttPassword);
+    mqttClient.setCredentials(mqttUser, mqttPassword);
   }  
-  
-  delay(500);
-  connectToMqtt();
-  delay(500);
-
-  // Publish online status
-  msg_error = mqttClient.publish(status_topic, 1, true, "online");
-  check_mqtt_msg(msg_error);
 
 
 //  Set up the scanner
