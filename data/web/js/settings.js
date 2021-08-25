@@ -41,14 +41,31 @@ function getDevices() {
   return {
     devices: null,
     isLoading: false,
-    load() {
+    init() {
       this.isLoading = true;
-      fetch(`/api/devices.json`)
+      fetch(`/api/devices`)
         .then((res) => res.json())
         .then((data) => {
           this.devices = data;
           this.isLoading = false;
         });
     },
+    save() {
+      this.devices = this.devices.filter(d => d.name !== '' && d.uuid !== '');
+      const data = new URLSearchParams();
+      data.append('devices', JSON.stringify(this.devices))
+      fetch(`/api/devices`, {
+        method: 'post',
+        headers: {
+          "Content-type": "application/x-www-form-urlencoded",
+        },
+        body: data
+      }).then(function(res) {
+        message = "Devices saved"
+        if (res.status !== 200) {
+          message = "Something went wrong saving devices. Check logs"
+        }
+      })
+    }
   };
 }

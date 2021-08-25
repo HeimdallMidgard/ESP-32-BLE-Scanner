@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="en" class="">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,user-scalable=no"
+    />
+    <title>ESP 32 Bluetooth Scanner for Home Assistant</title>
+    <link rel="stylesheet" type="text/css" href="/css/mini-default.min.css" />
+    <script src="/js/settings.js"></script>
+    <script defer src="/js/alpine.3.2.4.min.js"></script>
+  </head>
+
+  <body x-data="getDevices()">
+    <header>
+      <a href="#" class="logo">ESP32 BLE Scanner</a>
+      <span style="text-align: right">
+        <a href="/" class="button">Home</a>
+        <a href="/devices" class="button">Device Management</a>
+        <a href="/settings" class="button">Settings</a>
+      </span>
+    </header>
+    <div class="container">
+      <div class="row">
+        <div
+          class="col-sm-12 col-md-8 col-lg-6"
+          style="margin-left: auto; margin-right: auto"
+        >
+          <h3>Device Management</h3>
+          <form>
+              <div class="row cols-sm-12 cols-md-12 cols-lg-6" style="margin-left: auto; margin-right: auto">
+                <template
+                x-for="(device, index) in devices"
+                :key="'device_' + index"
+              >
+                  <div>
+                  <fieldset x-data="{name_id: 'device_name_' + index, uuid_id: 'device_uuid_' + index}">
+                    <div class="row">
+                      <div class="col-sm-12">
+                        <input
+                          :id="name_id"
+                          x-model="device.name"
+                          placeholder="Name"
+                          style="width: 100%"
+                        />
+                        <input
+                          :id="uuid_id"
+                          x-model="device.uuid"
+                          placeholder="Uuid"
+                          style="width: 100%"
+                        />
+                      </div>
+                    </div>
+                  </fieldset>
+                </div>
+              </template>
+            </div>
+            <button name="save" type="button" class="button save" @click="save()">Save</button>
+            <button name="add" type="button" class="button" @click="devices.push({name: '', uuid: ''});">Add device</button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>
