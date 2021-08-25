@@ -33,13 +33,13 @@ char mqtt_msg[120];
 uint16_t msg_error;
 
 // Wifi and MQTT Variables
-const char* ssid;
-const char* password;
-const char* mqttServer;
-long        mqttPort;
-const char* mqttUser;
-const char* mqttPassword;
-const char* room;
+char ssid[32];
+char password[32];
+char mqttServer[255];
+long mqttPort;
+char mqttUser[255];
+char mqttPassword[255];
+char room[255];
 
 char hostname[60];
 const char *hostname_prefix = "ESP 32 BLE Scanner ";
@@ -78,12 +78,13 @@ void write_to_logs(const char* new_log_entry) {
 
 void check_mqtt_msg(uint16_t error_state) {          
   if (error_state == 0) { 
-      write_to_logs("Error publishing MQTT Message \n");
+    write_to_logs("Error publishing MQTT Message \n");
   }
 }
 
 void connectToMqtt() {
-  write_to_logs("Connecting to MQTT... \n");
+  sprintf(log_msg, "Connecting to MQTT @ %s:%lu - %s:%s \n", mqttServer, mqttPort, mqttUser, mqttPassword);
+  write_to_logs(log_msg);
   mqttClient.connect();
 }
 
@@ -98,18 +99,22 @@ void onMqttConnect(bool sessionPresent) {
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
   write_to_logs("Disconnected from MQTT. \n");
   if (WiFi.isConnected()) {
-    delay(1000);
+    delay(5000);
     connectToMqtt();
   }
 }
 
+void connectToWifi() {
+  sprintf(log_msg, "Connecting to WiFi @ %s:%s \n", ssid, password);
+  write_to_logs(log_msg);
+  WiFi.begin(ssid, password);
+}
+
 void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info){
-   
   Serial.println("User connected to Hotspot");
 }
  
 void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info){
-   
   Serial.println("User disconnected");
 }
 
@@ -118,41 +123,39 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info){
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
 
-  delay(1000);
+  delay(3000);
   connectToMqtt();
 }
 
 void WiFi_Controller(){
+  if (WiFi.status() != WL_DISCONNECTED || wifi_ap_result == true) {
+    return;
+  }
+  wifi_errors ++;
+  Serial.println(" ");
+  Serial.print("Wifi Errors: ");
+  Serial.println(wifi_errors);
 
-    wifi_errors ++;
+  if ((wifi_errors < 10) && (wifi_ap_result == false)) {
+    Serial.println("Disconnected from WiFi access point");
+    Serial.println("Trying to Reconnect");
+    connectToWifi();
+  } else if ((wifi_errors > 10) && (wifi_ap_result == false)) {
     Serial.println(" ");
-    Serial.print("Wifi Errors: ");
-    Serial.println(wifi_errors);
-    delay(2500);
+    Serial.println("Starting AP");
 
-    if ((wifi_errors < 10) && (wifi_ap_result == false)) {
-          Serial.println("Disconnected from WiFi access point");
-          Serial.println("Trying to Reconnect");
-          WiFi.begin(ssid, password);
-          delay(500);
-          
-    } else if ((wifi_errors > 10) && (wifi_ap_result == false)) {
+    WiFi.mode(WIFI_AP);
+    delay(500);
+    WiFi.softAP("ESP32-BLE-Scanner");
+    
+    wifi_ap_result = WiFi.softAP("ESP32-BLE-Scanner");
 
-          Serial.println(" ");
-          Serial.println("Starting AP");
-
-          WiFi.mode(WIFI_AP);
-          delay(500);
-          WiFi.softAP("ESP32-BLE-Scanner");
-          
-          wifi_ap_result = WiFi.softAP("ESP32-BLE-Scanner");
-      
-          server.begin();  // Start Webserver
-          
-          delay(500);
-          Serial.print("Event IP address: ");
-          Serial.println(WiFi.softAPIP());
-     }
+    server.begin();  // Start Webserver
+    
+    delay(500);
+    Serial.print("Event IP address: ");
+    Serial.println(WiFi.softAPIP());
+  }
 }
 
 // Alternative Range Calculation
@@ -261,12 +264,14 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
 
                             // Send Scanning logs to Webserver Mainpage / Index Page  | write_to_logs(mqtt_msg); causing bug
                             server.on("/send_scan_results", HTTP_GET, [](AsyncWebServerRequest *request){
-                            request->send(200, "text/plain", mqtt_msg);
+                              request->send(200, "text/plain", mqtt_msg);
                             });
  
                             // Publish to MQTT
-                            msg_error = mqttClient.publish(scan_topic, 1, false, mqtt_msg);
-                            check_mqtt_msg(msg_error);
+                            if(mqttClient.connected()) {
+                              msg_error = mqttClient.publish(scan_topic, 1, false, mqtt_msg);
+                              check_mqtt_msg(msg_error);
+                            }
                             Serial.println(mqtt_msg);
                             //*mqtt_msg = '\0'; // Clear memory
                             }
@@ -391,13 +396,13 @@ void setup()
           Serial.println(json_error.c_str());
         }
         
-        ssid = doc["ssid"];
-        password = doc["password"];
-        mqttServer = doc["mqttServer"];
+        strncpy(ssid, doc["ssid"], sizeof(ssid));
+        strncpy(password, doc["password"], sizeof(password));
+        strncpy(mqttServer, doc["mqttServer"], sizeof(mqttServer));
+        strncpy(mqttUser, doc["mqttUser"], sizeof(mqttUser));
+        strncpy(mqttPassword, doc["mqttPassword"], sizeof(mqttPassword));
+        strncpy(room, doc["room"], sizeof(room));
         mqttPort = doc["mqttPort"];
-        mqttUser = doc["mqttUser"];
-        mqttPassword = doc["mqttPassword"];
-        room = doc["room"];
 
         // Combine Room and Prefix to Hostname
         strcpy(hostname,hostname_prefix);
@@ -428,7 +433,7 @@ void setup()
   WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE); // Dyn IP
   //WiFi.config(ip, INADDR_NONE, INADDR_NONE, INADDR_NONE);  // Fixed IP
   WiFi.setHostname(hostname);
-  WiFi.begin(ssid, password);
+  connectToWifi();
 
   WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_STA_CONNECTED);
   WiFi.onEvent(WiFiGotIP, SYSTEM_EVENT_STA_GOT_IP);
@@ -609,18 +614,15 @@ server.begin();
 
 void loop()
 {
-      if ((WiFi.status() == WL_DISCONNECTED) && (wifi_ap_result == false)) {
-
-        Serial.println(WiFi.status());
-          WiFi_Controller();
-
-          
-      }else if ((WiFi.status() == WL_CONNECTED)) {
-
-        // Scanner
-          BLEScanResults foundDevices = pBLEScan->start(scanTime, false);
-          Serial.println("_____________________________________");
-          pBLEScan->clearResults(); // delete results fromBLEScan buffer to release memory
-      }
-
+  if ((WiFi.status() == WL_DISCONNECTED) && (wifi_ap_result == false)) {
+    Serial.print("Current WiFi status: ");
+    Serial.println(WiFi.status());
+    delay(5000);
+    WiFi_Controller();
+  } else if ((WiFi.status() == WL_CONNECTED)) {
+    // Scanner
+    BLEScanResults foundDevices = pBLEScan->start(scanTime, false);
+    Serial.println("_____________________________________");
+    pBLEScan->clearResults(); // delete results fromBLEScan buffer to release memory
+  }
 }
