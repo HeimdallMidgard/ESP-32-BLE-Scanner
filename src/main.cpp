@@ -88,7 +88,7 @@ void WiFi_Controller() {
     Serial.println("Disconnected from WiFi access point");
     Serial.println("Trying to Reconnect");
     WiFi.begin(ssid, password);
-    delay(500);
+    delay(2000);
 
   } else if ((wifi_errors > 10) && (wifi_ap_result == false)) {
     Serial.println(" ");
@@ -442,12 +442,12 @@ void setup() {
   mqttClient.setClientId(hostname);
 
   if (strlen(mqttUser) == 0) {
-    Serial.println("No MQTT User set");
+    write_to_logs("No MQTT User set \n");
   } else {
     mqttClient.setCredentials(mqttUser, mqttPassword);
   }
 
-  delay(500);
+  delay(3000);
   connectToMqtt();
   delay(500);
 
