@@ -30,64 +30,59 @@
           <h3>Settings</h3>
           <form>
             <template
-              x-if="settings  && section"
               x-for="[section, values] in Object.entries(settings)"
               :key="section"
             >
-              <div class="row">
-                <div class="col-sm">
-                  <fieldset>
-                    <legend
-                      x-text="section"
-                      style="text-transform: capitalize"
-                    ></legend>
-                    <template
-                      x-for="[setting, value] in Object.entries(settings[section])"
-                    >
-                      <div class="row responsive-label">
-                        <div class="col-sm-12 col-md-3 col-lg-1">
-                          <label
-                            :for="setting"
-                            x-text="setting"
-                            style="text-transform: capitalize"
-                          ></label>
-                        </div>
-                        <div class="col-sm">
+              <fieldset>
+                <legend
+                  x-text="section"
+                  style="text-transform: capitalize"
+                ></legend>
+                <template
+                  x-for="[setting, value] in Object.entries(settings[section])"
+                >
+                  <div class="row responsive-label">
+                    <div class="col-sm-12 col-md-3 col-lg-2">
+                      <label
+                        :for="setting"
+                        x-text="setting"
+                        style="text-transform: capitalize"
+                      ></label>
+                    </div>
+                    <div class="col-sm">
+                      <template
+                        x-if="options[section] !== undefined && options[section][setting] !== undefined"
+                      >
+                        <select
+                          x-model="settings[section][setting]"
+                          style="width: 100%"
+                        >
                           <template
-                            x-if="options[section] !== undefined && options[section][setting] !== undefined"
+                            x-for="option in options[section][setting]['options']"
                           >
-                            <select
-                              x-model="settings[section][setting]"
-                              style="width: 85%"
-                            >
-                              <template
-                                x-for="option in options[section][setting]['options']"
-                              >
-                                <option
-                                  :key="option"
-                                  :value="option"
-                                  :selected="option === settings[section][setting]"
-                                  x-text="option"
-                                ></option>
-                              </template>
-                            </select>
+                            <option
+                              :key="option"
+                              :value="option"
+                              :selected="option === settings[section][setting]"
+                              x-text="option"
+                            ></option>
                           </template>
-                          <template
-                            x-if="options[section] === undefined || options[section][setting] === undefined"
-                          >
-                            <input
-                              :id="setting"
-                              :value="value"
-                              :placeholder="setting"
-                              style="width: 85%"
-                            />
-                          </template>
-                        </div>
-                      </div>
-                    </template>
-                  </fieldset>
-                </div>
-              </div>
+                        </select>
+                      </template>
+                      <template
+                        x-if="options[section] === undefined || options[section][setting] === undefined"
+                      >
+                        <input
+                          :id="setting"
+                          x-model="settings[section][setting]"
+                          :placeholder="setting"
+                          style="width: 100%"
+                        />
+                      </template>
+                    </div>
+                  </div>
+                </template>
+              </fieldset>
             </template>
             <button
               name="save"
