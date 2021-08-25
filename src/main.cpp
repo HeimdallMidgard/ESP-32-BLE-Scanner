@@ -278,6 +278,75 @@ bool savePostedJson(AsyncWebParameter* p, StaticJsonDocument<600> json, const ch
   return false;
 }
 
+bool migrateSettings()
+{
+  Serial.println("Migrating settings. Currently:");
+  serializeJson(settings, Serial);
+  Serial.print("\n");
+
+  char settingsString[600];
+  const char *room = settings["room"];
+  const char *ssid = settings["ssid"];
+  const char *password = settings["password"];
+  const char *mqttHost = settings["mqttServer"];
+  const char *mqttPort = settings["mqttPort"];
+  const char *mqttUser = settings["mqttUser"];
+  const char *mqttPassword = settings["mqttPassword"];
+  sprintf(settingsString,
+    "{\"device\":{\"room\":\"%s\"},\"network\":{\"ssid\":\"%s\",\"password\":\"%s\",\"hostname\":\"ESP32-BLE-Scanner-%s\"},\"mqtt\":{\"host\":\"%s\",\"port\":\"%s\",\"user\":\"%s\",\"password\":\"%s\"},\"ui\":{\"style\":\"default\"}}",
+    room, ssid, password, room, mqttHost, mqttPort, mqttUser, mqttPassword
+  );
+  Serial.println("Migrating to:");
+  Serial.println(settingsString);
+
+  File file = SPIFFS.open("/settings.json","w");
+  int written = file.print(settingsString);
+  if(file.print(settingsString) > 0)
+  {
+    Serial.println("New settings saved");
+  }
+  file.close();
+  return true;
+}
+
+bool migrateDevices()
+{
+  Serial.println("Migrating devices, currently:");
+  serializeJson(devices, Serial);
+  Serial.print("\n");
+
+  char devicesString[600] = "[";
+  for(int i=1; i<4; i++)
+  {
+    char uuid_key[13];
+    sprintf(uuid_key, "device_uuid%i", i);
+    const char* uuid = devices[uuid_key];
+    if(strlen(uuid) == 0){ break; }
+
+    char name_key[13];
+    sprintf(name_key, "device_name%i", i);
+    const char* name = devices[name_key];
+    if(strlen(name) == 0){ break; }
+
+    if(strlen(devicesString) > 1){ strcat(devicesString, ","); }
+    char deviceString[100];
+    sprintf(deviceString, "{\"name\":\"%s\",\"uuid\":\"%s\"}", name, uuid);
+    strcat(devicesString, deviceString);
+  }
+  strcat(devicesString, "]");
+
+  Serial.println("Migrating to:");
+  Serial.println(devicesString);
+
+  File file = SPIFFS.open("/devices.json","w");
+  int written = file.print(devicesString);
+  if(file.print(devicesString) > 0)
+  {
+    Serial.println("New devices saved");
+  }
+  file.close();
+  return true;
+}
 
 //
 //
@@ -326,6 +395,14 @@ void setup()
       reboot();
     }
   } devicesFile.close();
+
+  bool migrated = false;
+  if(settings["ssid"]){ migrated = migrateSettings(); }
+  if(devices["device_uuid1"]){ migrated = migrateDevices(); }
+  if(migrated){ reboot(); }
+
+  serializeJson(settings, Serial);
+  serializeJson(devices, Serial);
 
   const char *ssid         = settings["network"]["ssid"];
   const char *password     = settings["network"]["password"];
