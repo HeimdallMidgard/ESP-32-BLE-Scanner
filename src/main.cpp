@@ -252,6 +252,7 @@ void reboot()
 
 bool savePostedJson(AsyncWebParameter* p, StaticJsonDocument<600> json, const char filename[])
 {
+  json.clear();
   DeserializationError json_error = deserializeJson(json, p->value());
   if(json_error)
   {
@@ -267,6 +268,8 @@ bool savePostedJson(AsyncWebParameter* p, StaticJsonDocument<600> json, const ch
       if(serializeJson(json, file) > 0)
       {
         Serial.printf("Saved to %s\n", filename);
+        serializeJson(json, Serial);
+        Serial.print("\n");
         return true;
       }
     }
@@ -523,6 +526,7 @@ server.on("/api/settings", HTTP_POST, [](AsyncWebServerRequest *request){
   if(saved)
   {
     request->send(200);
+    reboot();
   }
   else
   {
@@ -548,7 +552,6 @@ server.on("/devices", HTTP_GET, [](AsyncWebServerRequest *request){
 server.on("/api/devices", HTTP_GET, [](AsyncWebServerRequest *request){
   char json[1000];
   serializeJson(devices, json);
-  Serial.println(json);
   request->send(200, "application/json", json);
 });
 
@@ -563,6 +566,7 @@ server.on("/api/devices", HTTP_POST, [](AsyncWebServerRequest *request){
   if(saved)
   {
     request->send(200);
+    reboot();
   }
   {
     Serial.println("Unable to save devices");

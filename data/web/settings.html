@@ -54,6 +54,7 @@
                         x-if="options[section] !== undefined && options[section][setting] !== undefined"
                       >
                         <select
+                          :id="section + '_' + setting"
                           x-model="settings[section][setting]"
                           style="width: 100%"
                         >
@@ -73,7 +74,7 @@
                         x-if="options[section] === undefined || options[section][setting] === undefined"
                       >
                         <input
-                          :id="setting"
+                          :id="section + '_' + setting"
                           x-model="settings[section][setting]"
                           :placeholder="setting"
                           style="width: 100%"
@@ -94,6 +95,14 @@
             </button>
           </form>
         </div>
+      </div>
+    </div>
+    <input type="checkbox" id="refresh-modal-control" class="modal" text="blah" x-ref="modalCheckbox" />
+    <div role="dialog" aria-labelledby="dialog-title">
+      <div class="card">
+        <h4 class="section" id="dialog-title">Saved!</h3>
+        <p x-ref="modalText" class="section"></p>
+        <button class="button" @click="$el.textContent = 'Refreshing...'; $el.disabled = true;" @click.debounce.1000ms="window.location.reload();">Ok</button>
       </div>
     </div>
   </body>
