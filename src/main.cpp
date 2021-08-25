@@ -207,7 +207,8 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks
             int rssi = advertisedDevice->getRSSI();
             int8_t power = oBeacon.getSignalPower();
             float distance = calculateAccuracy(power, rssi);
-            sprintf(mqtt_msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f, \"rssi\": %i, \"signalPower\": %i } \n", uuid, name, distance, rssi, power );
+            sprintf(mqtt_msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f } \n", uuid, name, distance );
+            // sprintf(mqtt_msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f, \"rssi\": %i, \"signalPower\": %i } \n", uuid, name, distance, rssi, power );
             // Send Scanning logs to Webserver Mainpage / Index Page  | write_to_logs(mqtt_msg); causing bug
             server.on("/send_scan_results", HTTP_GET, [](AsyncWebServerRequest *request){
               request->send(200, "text/plain", mqtt_msg);
