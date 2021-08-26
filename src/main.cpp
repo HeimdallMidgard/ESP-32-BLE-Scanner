@@ -301,7 +301,7 @@ void WiFi_Controller() {
     const char *password = settings["wifi"]["password"];
 
     WiFi.begin(ssid, password);
-    delay(500);
+    delay(3000);
 
   } else if ((wifi_errors > 10) && (wifi_ap_result == false)) {
     Serial.println(" ");
