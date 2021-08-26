@@ -24,6 +24,7 @@
 #define ENDIAN_CHANGE_U16(x) ((((x)&0xFF00) >> 8) + (((x)&0xFF) << 8))
 
 // Scanner Variables
+BLEDevice *pBLEDev;
 BLEScan *pBLEScan;
 
 // MQTT MSG
@@ -435,12 +436,16 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     }
     std::string strManufacturerData = advertisedDevice->getManufacturerData();
     if (!isBeacon(strManufacturerData)) {
+      pBLEDev->addIgnored(advertisedDevice->getAddress());
       return;
     }
     BLEBeacon oBeacon = BLEBeacon();
     oBeacon.setData(strManufacturerData);
     const char *uuid = oBeacon.getProximityUUID().toString().c_str();
     const char *name = getDeviceName(uuid);
+    if (strlen(name) == 0) {
+      return;
+    }
     int rssi = advertisedDevice->getRSSI();
     int8_t power = oBeacon.getSignalPower();
     float distance = calculateAccuracy(power, rssi);
@@ -531,8 +536,9 @@ void startMqtt() {
 void startScanner() {
   int interval = atoi(settings["bluetooth"]["scan_interval"]);
   int window = (int)(interval * 0.9);
-  BLEDevice::init("");
-  pBLEScan = BLEDevice::getScan();  // create new scan
+  pBLEDev = new BLEDevice;
+  pBLEDev->init("");
+  pBLEScan = pBLEDev->getScan();  // create new scan
   pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
   // active scan uses more power, but get results faster
   pBLEScan->setActiveScan(true);
