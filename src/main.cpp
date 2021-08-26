@@ -298,6 +298,9 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
   Serial.println("WiFi connected");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+
+  delay(3000);
+  connectToMqtt();
 }
 
 void WiFi_Controller() {
@@ -465,6 +468,10 @@ void startWifi() {
 
   WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);  // Dyn IP
   // WiFi.config(ip, INADDR_NONE, INADDR_NONE, INADDR_NONE);  // Fixed IP
+
+  sprintf(log_msg, "Connecting to WiFi @ %s:%s \n", ssid, password);
+  write_to_logs(log_msg);
+
   WiFi.setHostname(hostname);
   WiFi.begin(ssid, password);
 
