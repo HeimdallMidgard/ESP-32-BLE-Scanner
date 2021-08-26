@@ -64,6 +64,12 @@ void reboot() {
   ESP.restart();
 }
 
+void write_to_logs(const char *new_log_entry) {
+  // Copies to logs to publish in Weblog
+  strncat(logs, new_log_entry, sizeof(logs));
+  Serial.println(new_log_entry);
+}
+
 //
 // Settings functions
 //
@@ -268,10 +274,11 @@ bool savePostedJson(AsyncWebParameter *p, StaticJsonDocument<1024> json,
   return false;
 }
 
-//
-// FUNCTIONS
-//
-// connect to mqtt
+void check_mqtt_msg(uint16_t error_state) {
+  if (error_state == 0) {
+    write_to_logs("Error publishing MQTT Message \n");
+  }
+}
 
 void connectToMqtt() {
   write_to_logs("Connecting to MQTT... \n");
@@ -367,18 +374,6 @@ float calculateAccuracy(double txPower, double rssi_calc) {
         return round(distFl * 100) / 100;
 }
 */
-
-void write_to_logs(const char *new_log_entry) {
-  strncat(logs, new_log_entry,
-          sizeof(logs));  // Copies to logs to publish in Weblog
-  Serial.println(new_log_entry);
-}
-
-void check_mqtt_msg(uint16_t error_state) {
-  if (error_state == 0) {
-    write_to_logs("Error publishing MQTT Message \n");
-  }
-}
 
 // Distance Calculation
 float calculateAccuracy(float txCalibratedPower, float rssi) {
