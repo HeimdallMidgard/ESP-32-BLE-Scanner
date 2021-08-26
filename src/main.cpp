@@ -271,6 +271,20 @@ bool savePostedJson(AsyncWebParameter *p, StaticJsonDocument<1024> json,
 //
 // FUNCTIONS
 //
+// connect to mqtt
+
+void connectToMqtt() {
+  write_to_logs("Connecting to MQTT... \n");
+  mqttClient.connect();
+}
+
+void onMqttConnect(bool sessionPresent) {
+  write_to_logs("Connected to MQTT. \n");
+}
+
+void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
+  write_to_logs("Disconnected from MQTT. \n");
+}
 
 void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
   Serial.println("User connected to Hotspot");
@@ -435,25 +449,6 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     sendDeviceMqtt(uuid, name, distance);
   }
 };
-
-// connect to mqtt
-
-void connectToMqtt() {
-  write_to_logs("Connecting to MQTT... \n");
-  mqttClient.connect();
-}
-
-void onMqttConnect(bool sessionPresent) {
-  write_to_logs("Connected to MQTT. \n");
-}
-
-void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
-  write_to_logs("Disconnected from MQTT. \n");
-  if (WiFi.isConnected()) {
-    delay(1000);
-    connectToMqtt();
-  }
-}
 
 //
 //
