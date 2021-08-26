@@ -27,20 +27,18 @@
 BLEScan *pBLEScan;
 
 // MQTT MSG
-char logs[255];
-char log_msg[255];
-char mqtt_msg[120];
+char logs[255], log_msg[255], mqtt_msg[120];
 uint16_t msg_error;
 
-char scan_topic[60];
+char scan_topic[60], telemetry_topic[60];
 const char *mqtt_scan_prefix = "ESP32 BLE Scanner/Scan/";
 const char *status_topic = "ESP32 BLE Scanner/Status/";
+const char *mqtt_telemetry_prefix = "ESP32 BLE Scanner/tele/";
 
 const char settingsFile[15] = "/settings.json";
 const char devicesFile[15] = "/devices.json";
 
-StaticJsonDocument<1024> settings;
-StaticJsonDocument<1024> devices;
+StaticJsonDocument<1024> settings, devices;
 
 // IPAddress ip(192, 168, 1, 177);  // not in use
 
@@ -444,9 +442,23 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     int rssi = advertisedDevice->getRSSI();
     int8_t power = oBeacon.getSignalPower();
     float distance = calculateAccuracy(power, rssi);
+    // float distance = getAverageDistance(uuid, calculateAccuracy(power,
+    // rssi));
     sendDeviceMqtt(uuid, name, distance);
   }
 };
+
+void sendTelemetry(NimBLEScanResults devices) {
+  char msg[100];
+  int uptime = (int)(esp_timer_get_time() / 1000000);
+  sprintf(msg,
+          "{ \"results_last_scan\": \"%i\", \"free_heap\": \"%i\", \"uptime\": "
+          "\"%i\" } \n",
+          devices.getCount(), ESP.getFreeHeap(), uptime);
+  msg_error = mqttClient.publish(telemetry_topic, 1, false, msg);
+  check_mqtt_msg(msg_error);
+  Serial.println(msg);
+}
 
 //
 //
@@ -486,6 +498,8 @@ void startMqtt() {
   // Combine Room and Prefix to MQTT topic
   strcpy(scan_topic, mqtt_scan_prefix);
   strcat(scan_topic, settings["device"]["room"]);
+  strcpy(telemetry_topic, mqtt_telemetry_prefix);
+  strcat(telemetry_topic, settings["device"]["room"]);
 
   mqttClient.onConnect(onMqttConnect);
   mqttClient.onDisconnect(onMqttDisconnect);
@@ -653,7 +667,7 @@ void loop() {
     if (!pBLEScan->isScanning()) {
       int scanTime = (int)settings["bluetooth"]["scan_time"];
       Serial.println("Scanning...");
-      pBLEScan->start(scanTime, false);
+      pBLEScan->start(scanTime, sendTelemetry, false);
       Serial.println("_____________________________________");
       // delete results fromBLEScan buffer to release memory
       pBLEScan->clearResults();
