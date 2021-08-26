@@ -213,7 +213,17 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   }
 };
 
-// connect to mqtt
+void setupMqtt(const char* mqttHost, long mqttPort, const char* mqttUser, const char* mqttPassword, const char* hostname) {
+
+  mqttClient.setServer(mqttHost, mqttPort);
+  mqttClient.setClientId(hostname);
+
+  if (strlen(mqttUser) == 0) {
+    write_to_logs("No MQTT User set \n");
+  } else {
+    mqttClient.setCredentials(mqttUser, mqttPassword);
+  }
+}
 
 void connectToMqtt() {
   write_to_logs("Connecting to MQTT... \n");
@@ -434,23 +444,17 @@ void setup() {
 
   randomSeed(micros());
 
-  // Start MQTT Connection
-  mqttClient.setServer(mqttHost, mqttPort);
-  mqttClient.setClientId(hostname);
 
-  if (strlen(mqttUser) == 0) {
-    write_to_logs("No MQTT User set \n");
-  } else {
-    mqttClient.setCredentials(mqttUser, mqttPassword);
-  }
+  setupMqtt(mqttHost, mqttPort, mqttUser, mqttPassword, hostname);
 
-  delay(3000);
+  delay(3000); // Long delay to give the ESP some time to set everything up else connection issues with Wifi and MQTT
   connectToMqtt();
   delay(500);
 
   // Publish online status
   msg_error = mqttClient.publish(status_topic, 1, true, "online");
   check_mqtt_msg(msg_error);
+
 
   // Set up the scanner
   write_to_logs("Starting to Scan... \n");
@@ -462,7 +466,8 @@ void setup() {
   pBLEScan->setInterval(100);
   pBLEScan->setWindow(90);  // less or equal setInterval value
 
-  delay(500);
+  delay(1000);  // Delay for the ESP to set up the BLE
+
 
   //
   //
