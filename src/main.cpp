@@ -346,19 +346,7 @@ bool migrateDevices() {
 //
 //
 
-void setup() {
-  Serial.begin(115200);
-  Serial.println("");
-  write_to_logs("Starting...\n");
-
-  // Initialize SPIFFS
-  if (!SPIFFS.begin(true)) {
-    write_to_logs("Error initializing SPIFFS \n");
-    while (true) {
-    }  //
-  }
-
-  // Load Settings from SPIFFS for WIFI Start
+void loadSettings() {
   File settingsFile = SPIFFS.open("/settings.json");
   if (settingsFile) {
     DeserializationError json_error = deserializeJson(settings, settingsFile);
@@ -369,7 +357,9 @@ void setup() {
     }
   }
   settingsFile.close();
+}
 
+void loadDevices() {
   File devicesFile = SPIFFS.open("/devices.json");
   if (devicesFile) {
     DeserializationError json_error = deserializeJson(devices, devicesFile);
@@ -380,7 +370,9 @@ void setup() {
     }
   }
   devicesFile.close();
+}
 
+bool checkMigrations() {
   bool migrated = false;
   if (settings["ssid"]) {
     migrated = migrateSettings();
@@ -388,38 +380,13 @@ void setup() {
   if (devices["device_uuid1"]) {
     migrated = migrateDevices();
   }
-  if (migrated) {
-    reboot();
-  }
+  return migrated;
+}
 
-  serializeJson(settings, Serial);
-  serializeJson(devices, Serial);
-
+void startWifi() {
   const char *ssid = settings["network"]["ssid"];
   const char *password = settings["network"]["password"];
   const char *hostname = settings["network"]["hostname"];
-  const char *mqttHost = settings["mqtt"]["host"];
-  long mqttPort = settings["mqtt"]["port"];
-  const char *mqttUser = settings["mqtt"]["user"];
-  const char *mqttPassword = settings["mqtt"]["password"];
-
-  // Combine Room and Prefix to MQTT topic
-  strcpy(scan_topic, mqtt_scan_prefix);
-  strcat(scan_topic, settings["device"]["room"]);
-
-  Serial.println(" ");
-  Serial.println("SPIFFS Data:");
-  Serial.println(ssid);
-  Serial.println(password);
-  Serial.println(hostname);
-  Serial.println(mqttHost);
-  Serial.println(mqttPort);
-  Serial.println(mqttUser);
-  Serial.println(mqttPassword);
-  Serial.println(scan_topic);
-  Serial.println("__________________________________________________________");
-
-  // Starting WIFI
 
   WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);  // Dyn IP
   // WiFi.config(ip, INADDR_NONE, INADDR_NONE, INADDR_NONE);  // Fixed IP
@@ -430,6 +397,18 @@ void setup() {
   WiFi.onEvent(WiFiGotIP, SYSTEM_EVENT_STA_GOT_IP);
   WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_AP_STACONNECTED);
   WiFi.onEvent(WiFiStationDisconnected, SYSTEM_EVENT_AP_STADISCONNECTED);
+}
+
+void startMqtt() {
+  const char *hostname = settings["network"]["hostname"];
+  const char *mqttHost = settings["mqtt"]["host"];
+  long mqttPort = settings["mqtt"]["port"];
+  const char *mqttUser = settings["mqtt"]["user"];
+  const char *mqttPassword = settings["mqtt"]["password"];
+
+  // Combine Room and Prefix to MQTT topic
+  strcpy(scan_topic, mqtt_scan_prefix);
+  strcat(scan_topic, settings["device"]["room"]);
 
   mqttClient.onConnect(onMqttConnect);
   mqttClient.onDisconnect(onMqttDisconnect);
@@ -454,25 +433,19 @@ void setup() {
   // Publish online status
   msg_error = mqttClient.publish(status_topic, 1, true, "online");
   check_mqtt_msg(msg_error);
+}
 
-  // Set up the scanner
-  write_to_logs("Starting to Scan... \n");
+void startScanner() {
   BLEDevice::init("");
   pBLEScan = BLEDevice::getScan();  // create new scan
-  pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
-  pBLEScan->setActiveScan(
-      true);  // active scan uses more power, but get results faster
+  // pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
+  // active scan uses more power, but get results faster
+  pBLEScan->setActiveScan(true);
   pBLEScan->setInterval(100);
   pBLEScan->setWindow(90);  // less or equal setInterval value
+}
 
-  delay(500);
-
-  //
-  //
-  //  Webpage Settings
-  //
-  //
-
+void startWebServer() {
   // Serve css
   server.serveStatic("/css", SPIFFS, "/web/css");
 
@@ -561,7 +534,38 @@ void setup() {
 
   // Start Webserver
   server.begin();
+}
 
+void setup() {
+  Serial.begin(115200);
+  Serial.println("");
+  write_to_logs("Starting...\n");
+
+  // Initialize SPIFFS
+  if (!SPIFFS.begin(true)) {
+    write_to_logs("Error initializing SPIFFS \n");
+    while (true) {
+    }
+  }
+
+  // Load Settings from SPIFFS for WIFI Start
+  loadSettings();
+  Serial.println("Loaded settings:");
+  serializeJson(settings, Serial);
+
+  loadDevices();
+  Serial.println("Loaded devices:");
+  serializeJson(devices, Serial);
+
+  if (checkMigrations()) {
+    reboot;
+  }
+
+  startWifi();
+  startWebServer();
+  startMqtt();
+  startScanner();
+  delay(500);
 }  // SETUP END
 
 void loop() {
