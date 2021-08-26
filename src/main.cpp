@@ -139,8 +139,7 @@ float calculateAccuracy(double txPower, double rssi_calc) {
 */
 
 void write_to_logs(const char *new_log_entry) {
-  strncat(logs, new_log_entry,
-          sizeof(logs));  // Copies to logs to publish in Weblog
+  strncat(logs, new_log_entry,sizeof(logs));  // Copies to logs to publish in Weblog
   Serial.println(new_log_entry);
 }
 
@@ -239,8 +238,7 @@ void reboot() {
   ESP.restart();
 }
 
-bool savePostedJson(AsyncWebParameter *p, StaticJsonDocument<600> json,
-                    const char filename[]) {
+bool savePostedJson(AsyncWebParameter *p, StaticJsonDocument<600> json, const char filename[]) {
   json.clear();
   DeserializationError json_error = deserializeJson(json, p->value());
   if (json_error) {
@@ -282,8 +280,7 @@ bool migrateSettings() {
           "\"password\":\"%s\",\"hostname\":\"ESP32-BLE-Scanner-%s\"},\"mqtt\":"
           "{\"host\":\"%s\",\"port\":\"%s\",\"user\":\"%s\",\"password\":\"%"
           "s\"},\"ui\":{\"style\":\"default\"}}",
-          room, ssid, password, room, mqttHost, mqttPort, mqttUser,
-          mqttPassword);
+          room, ssid, password, room, mqttHost, mqttPort, mqttUser, mqttPassword);
   Serial.println("Migrating to:");
   Serial.println(settingsString);
 
@@ -574,8 +571,7 @@ void loop() {
     if (!pBLEScan->isScanning()) {
       BLEScanResults foundDevices = pBLEScan->start(scanTime, false);
       Serial.println("_____________________________________");
-      pBLEScan->clearResults();  // delete results fromBLEScan buffer to release
-                                 // memory
+      pBLEScan->clearResults();  // delete results fromBLEScan buffer to release memory
     }
   }
 }
