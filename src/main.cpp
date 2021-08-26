@@ -72,13 +72,15 @@ void write_to_logs(const char *new_log_entry) {
 // Settings functions
 //
 
-String loadFile(const char *filename) {
+String loadFile(const char *filename, String defaultValue) {
   File file = SPIFFS.open(filename);
-  if (!file) {
-    Serial.printf("Unable to load %s", filename);
+  String data;
+  if (file) {
+    data = file.readString();
+    file.close();
+  } else {
+    data = defaultValue;
   }
-  String data = file.readString();
-  file.close();
   return data;
 }
 
@@ -95,7 +97,7 @@ void saveJson(StaticJsonDocument<1024> json, const char *filename) {
 void saveSettings() { saveJson(settings, settingsFile); }
 
 void loadSettings() {
-  String data = loadFile(settingsFile);
+  String data = loadFile(settingsFile, "{}");
 
   DeserializationError json_error = deserializeJson(settings, data);
   if (json_error) {
@@ -112,7 +114,7 @@ void loadSettings() {
 void saveDevices() { saveJson(devices, devicesFile); }
 
 void loadDevices() {
-  String data = loadFile(devicesFile);
+  String data = loadFile(devicesFile, "[]");
 
   DeserializationError json_error = deserializeJson(devices, data);
   if (json_error) {
