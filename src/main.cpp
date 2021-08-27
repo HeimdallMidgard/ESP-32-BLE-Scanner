@@ -314,7 +314,7 @@ void WiFi_Controller() {
   Serial.println(wifi_errors);
   delay(2500);
 
-  if ((wifi_errors < 10) && (wifi_ap_result == false)) {
+  if ((wifi_errors < 9) && (wifi_ap_result == false)) {
     Serial.println("Disconnected from WiFi access point");
     Serial.println("Trying to Reconnect");
 
@@ -322,9 +322,9 @@ void WiFi_Controller() {
     const char *password = settings["wifi"]["password"];
 
     WiFi.begin(ssid, password);
-    delay(3000);
+    delay(5000);
 
-  } else if ((wifi_errors > 10) && (wifi_ap_result == false)) {
+  } else if ((wifi_errors > 9) && (wifi_ap_result == false)) {
     Serial.println(" ");
     Serial.println("Starting AP");
 
@@ -673,7 +673,7 @@ void setup() {
   delay(500);
 
   if (devices_set_up() == false) {
-    Serial.println("No devices set up. Not scanning.");
+    write_to_logs("No devices set up. Not scanning.");
   }
 }
 
@@ -683,6 +683,11 @@ void loop() {
     WiFi_Controller();
 
   } else if ((WiFi.status() == WL_CONNECTED)) {
+
+      // Reset Wifi Error Counter when the connection is working
+      if (wifi_errors > 0){ 
+        wifi_errors = 0;
+      }
 
       if (devices_set_up() == true) {
 
