@@ -468,8 +468,8 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   }
 };
 
-void sendTelemetry(NimBLEScanResults devices) {
-  if (!mqttClient.connected())
+void publishTelemetry(NimBLEScanResults devices) {
+  if (!mqttClient.connected()) return;
   char msg[100];
   int uptime = (int)(esp_timer_get_time() / 1000000);
   sprintf(msg,
@@ -689,7 +689,7 @@ void loop() {
       if (!pBLEScan->isScanning()) {
         int scanTime = (int)settings["bluetooth"]["scan_time"];
         Serial.println("Scanning...");
-        pBLEScan->start(scanTime, sendTelemetry, false);
+        pBLEScan->start(scanTime, publishTelemetry, false);
         Serial.println("_____________________________________");
         pBLEScan->clearResults(); // delete results fromBLEScan buffer to
                                   // release memory
