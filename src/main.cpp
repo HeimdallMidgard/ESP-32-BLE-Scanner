@@ -1,6 +1,6 @@
 // Arduino
 #include <Arduino.h>
-#include <ArduinoJson.h>  //JSON for Saving Values and Sending Data over MQTT
+#include <ArduinoJson.h> //JSON for Saving Values and Sending Data over MQTT
 
 // SPIFFS
 #include "SPIFFS.h"
@@ -126,8 +126,7 @@ void loadDevices() {
   }
 }
 
-bool initSetting(const char key1[], const char key2[],
-                 const char defaultValue[]) {
+bool initSetting(const char key1[], const char key2[], const char defaultValue[]) {
   bool changed = false;
   if (settings[key1] == nullptr) {
     Serial.printf("settings.%s not set, creating.\n", key1);
@@ -178,7 +177,6 @@ bool initSettingsBluetooth() {
 }
 
 bool initSettings() {
-  serializeJson(settings, Serial);
   bool changed = false;
   if (initSettingsDevice()) changed = true;
   if (initSettingsNetwork()) changed = true;
@@ -220,20 +218,14 @@ bool migrateDevices() {
     char uuid_key[13];
     sprintf(uuid_key, "device_uuid%i", i);
     const char *uuid = devices[uuid_key];
-    if (strlen(uuid) == 0) {
-      break;
-    }
+    if (strlen(uuid) == 0) break;
 
     char name_key[13];
     sprintf(name_key, "device_name%i", i);
     const char *name = devices[name_key];
-    if (strlen(name) == 0) {
-      break;
-    }
+    if (strlen(name) == 0) break;
 
-    if (strlen(devicesString) > 1) {
-      strcat(devicesString, ",");
-    }
+    if (strlen(devicesString) > 1) strcat(devicesString, ",");
     char deviceString[100];
     sprintf(deviceString, "{\"name\":\"%s\",\"uuid\":\"%s\"}", name, uuid);
     strcat(devicesString, deviceString);
@@ -242,23 +234,18 @@ bool migrateDevices() {
 
   Serial.println("Migrating to:");
   Serial.println(devicesString);
-  ;
+
   return true;
 }
 
 bool checkMigrations() {
   bool migrated = false;
-  if (settings["ssid"]) {
-    migrated = migrateSettings();
-  }
-  if (devices["device_uuid1"]) {
-    migrated = migrateDevices();
-  }
+  if (settings["ssid"]) migrated = migrateSettings();
+  if (devices["device_uuid1"]) migrated = migrateDevices();
   return migrated;
 }
 
-bool savePostedJson(AsyncWebParameter *p, StaticJsonDocument<1024> json,
-                    const char *filename) {
+bool savePostedJson(AsyncWebParameter *p, StaticJsonDocument<1024> json, const char *filename) {
   json.clear();
   DeserializationError json_error = deserializeJson(json, p->value());
   if (json_error) {
@@ -272,9 +259,7 @@ bool savePostedJson(AsyncWebParameter *p, StaticJsonDocument<1024> json,
 }
 
 void check_mqtt_msg(uint16_t error_state) {
-  if (error_state == 0) {
-    write_to_logs("Error publishing MQTT Message");
-  }
+  if (error_state == 0) write_to_logs("Error publishing MQTT Message");
 }
 
 void connectToMqtt() {
@@ -352,7 +337,7 @@ void WiFi_Controller() {
 
     wifi_ap_result = WiFi.softAP("ESP32-BLE-Scanner");
 
-    server.begin();  // Start Webserver
+    server.begin(); // Start Webserver
 
     delay(500);
     Serial.print("Event IP address: ");
@@ -360,11 +345,11 @@ void WiFi_Controller() {
   }
 }
 
-void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
-  if(type == WS_EVT_CONNECT){
+void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
+  if (type == WS_EVT_CONNECT) {
     Serial.println("Websocket client connection received");
     client->text("Connected to websocket");
-  } else if(type == WS_EVT_DISCONNECT){
+  } else if (type == WS_EVT_DISCONNECT) {
     Serial.println("Client disconnected");
   }
 }
@@ -409,36 +394,42 @@ float calculateAccuracy(float txCalibratedPower, float rssi) {
   return r;
 }
 
-
-//Checks if devices are inside devices.json
+// Checks if devices are inside devices.json
 bool devices_set_up() {
-  if (devices.size() < 1){
+  if (devices.size() < 1) {
     return false;
-  }else{
+  } else {
     return true;
   }
 }
 
+// float getAverageDistance(const char *uuid, float distance) {
+//   if (deviceDistances.count(uuid) == 0) {
+//     std::vector<float> distances;
+//     deviceDistances[uuid] = distances;
+//   }
+//   if (deviceDistances[uuid].size() == 30) {
+//     deviceDistances[uuid].erase(deviceDistances[uuid].begin());
+//   }
+//   deviceDistances[uuid].push_back(distance);
+//   return std::accumulate(deviceDistances[uuid].begin(),
+//   deviceDistances[uuid].end(), 0LL) / deviceDistances[uuid].size();
+// }
 
 // Scanner
 
 bool isBeacon(std::string strManufacturerData) {
   uint8_t cManufacturerData[100];
-  strManufacturerData.copy((char *)cManufacturerData,
-                           strManufacturerData.length(), 0);
+  strManufacturerData.copy((char *)cManufacturerData, strManufacturerData.length(), 0);
   return (strManufacturerData.length() == 25 && cManufacturerData[0] == 0x4C &&
           cManufacturerData[1] == 0x00);
 }
 
 const char *getDeviceName(const char *uuid) {
   const char *name;
-  if (strlen(uuid) == 0) {
-    return name;
-  }
+  if (strlen(uuid) == 0) return name;
   for (size_t i = 0; i < devices.size(); i++) {
-    if (strcmp(uuid, devices[i]["uuid"]) == 0) {
-      return devices[i]["name"];
-    }
+    if (strcmp(uuid, devices[i]["uuid"]) == 0) return devices[i]["name"];
   }
   return name;
 }
@@ -455,9 +446,8 @@ void sendDeviceMqtt(const char *uuid, const char *name, float distance) {
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   void onResult(BLEAdvertisedDevice *advertisedDevice) {
-    if (advertisedDevice->haveManufacturerData() == false) {
-      return;
-    }
+    if (advertisedDevice->haveManufacturerData() == false) return;
+
     std::string strManufacturerData = advertisedDevice->getManufacturerData();
     if (!isBeacon(strManufacturerData)) {
       pBLEDev->addIgnored(advertisedDevice->getAddress());
@@ -467,9 +457,8 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     oBeacon.setData(strManufacturerData);
     const char *uuid = oBeacon.getProximityUUID().toString().c_str();
     const char *name = getDeviceName(uuid);
-    if (strlen(name) == 0) {
-      return;
-    }
+    if (strlen(name) == 0) return;
+
     int rssi = advertisedDevice->getRSSI();
     int8_t power = oBeacon.getSignalPower();
     float distance = calculateAccuracy(power, rssi);
@@ -486,19 +475,17 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
 };
 
 void sendTelemetry(NimBLEScanResults devices) {
-  if(mqttClient.connected()) {
-    char msg[255];
-    int uptime = (int)(esp_timer_get_time() / 1000000);
-    sprintf(msg,
-            "{ \"results_last_scan\": \"%i\", \"free_heap\": \"%i\", \"uptime\": "
-            "\"%i\" }",
-            devices.getCount(), ESP.getFreeHeap(), uptime);
-    ws.printfAll(msg);
-    uint16_t msg_error;
-    msg_error = mqttClient.publish(telemetry_topic, 1, false, msg);
-    check_mqtt_msg(msg_error);
-    Serial.println(msg);
-  }
+  if (!mqttClient.connected())
+  char msg[100];
+  int uptime = (int)(esp_timer_get_time() / 1000000);
+  sprintf(msg,
+          "{ \"results_last_scan\": \"%i\", \"free_heap\": \"%i\", \"uptime\": \"%i\" }",
+          devices.getCount(), ESP.getFreeHeap(), uptime);
+  ws.printfAll(msg);
+  uint16_t msg_error;
+  msg_error = mqttClient.publish(telemetry_topic, 1, false, msg);
+  check_mqtt_msg(msg_error);
+  Serial.println(msg);
 }
 
 //
@@ -514,7 +501,7 @@ void startWifi() {
   const char *password = settings["network"]["password"];
   const char *hostname = settings["network"]["hostname"];
 
-  WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);  // Dyn IP
+  WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE); // Dyn IP
   // WiFi.config(ip, INADDR_NONE, INADDR_NONE, INADDR_NONE);  // Fixed IP
 
   char msg[50];
@@ -559,9 +546,9 @@ void startMqtt() {
   mqttClient.setServer(mqttHost, mqttPort);
   mqttClient.setClientId(hostname);
 
-  if (strlen(mqttUser) == 0) {
+  if (strlen(mqttUser) == 0)
     Serial.println("No MQTT User set");
-  } else {
+  else
     mqttClient.setCredentials(mqttUser, mqttPassword);
   }
 }
@@ -571,12 +558,12 @@ void startScanner() {
   int window = (int)(interval * 0.9);
   pBLEDev = new BLEDevice;
   pBLEDev->init("");
-  pBLEScan = pBLEDev->getScan();  // create new scan
+  pBLEScan = pBLEDev->getScan(); // create new scan
   pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
   // active scan uses more power, but get results faster
   pBLEScan->setActiveScan(true);
   pBLEScan->setInterval(interval);
-  pBLEScan->setWindow(window);  // less or equal setInterval value
+  pBLEScan->setWindow(window); // less or equal setInterval value
 }
 
 void startWebServer() {
@@ -608,8 +595,7 @@ void startWebServer() {
     Serial.println("POST Request to /api/settings");
     bool saved = false;
     if (request->hasParam("settings", true)) {
-      saved = savePostedJson(request->getParam("settings", true), settings,
-                             settingsFile);
+      saved = savePostedJson(request->getParam("settings", true), settings, settingsFile);
     } else {
       Serial.println("Has no settings param");
     }
@@ -693,32 +679,27 @@ void setup() {
   startScanner();
   delay(500);
 
-  if (devices_set_up() == false) {
-    write_to_logs("No devices set up. Not scanning.");
-  }
+  if (devices_set_up() == false) write_to_logs("No devices set up. Not scanning.");
 }
 
 void loop() {
-
   if ((WiFi.status() == WL_DISCONNECTED) && (wifi_ap_result == false)) {
     delay(5000);
     WiFi_Controller();
   } else if ((WiFi.status() == WL_CONNECTED)) {
-      // Reset Wifi Error Counter when the connection is working
-      if (wifi_errors > 0){ 
-        wifi_errors = 0;
-      }
+    // Reset Wifi Error Counter when the connection is working
+    if (wifi_errors > 0) wifi_errors = 0;
 
-      if (devices_set_up() == true) {
-          // Scanner
-          if (!pBLEScan->isScanning()) {
-            int scanTime = (int)settings["bluetooth"]["scan_time"];
-            Serial.println("Scanning...");
-            pBLEScan->start(scanTime, sendTelemetry, false);
-            Serial.println("_____________________________________");
-            pBLEScan->clearResults(); // delete results fromBLEScan buffer to release memory
-          }
+    if (devices_set_up() == true) {
+      // Scanner
+      if (!pBLEScan->isScanning()) {
+        int scanTime = (int)settings["bluetooth"]["scan_time"];
+        Serial.println("Scanning...");
+        pBLEScan->start(scanTime, sendTelemetry, false);
+        Serial.println("_____________________________________");
+        pBLEScan->clearResults(); // delete results fromBLEScan buffer to
+                                  // release memory
       }
+    }
   }
-
 }
