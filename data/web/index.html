@@ -8,7 +8,7 @@
     />
     <title>ESP 32 Bluetooth Scanner for Home Assistant</title>
     <link rel="stylesheet" type="text/css" href="/css/mini-default.min.css" />
-    <script src="/js/index.js"></script>
+    <script src="/js/logging.js"></script>
     <script defer src="/js/alpine.3.2.4.min.js"></script>
   </head>
 
@@ -27,9 +27,15 @@
           class="col-sm-12 col-md-8 col-lg-6"
           style="margin-left: auto; margin-right: auto"
         >
-          <fieldset>
+          <fieldset x-data="startSocket()">
             <legend>Scan Results / Logs</legend>
-            <textarea id="logs" name="logs" rows="15" style="width: 100%;"></textarea>
+            <textarea
+              id="logs"
+              name="logs"
+              rows="15"
+              style="width: 100%"
+              x-text="log_lines.join('\n')"
+            ></textarea>
           </fieldset>
         </div>
       </div>

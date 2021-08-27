@@ -24,23 +24,18 @@
 #define ENDIAN_CHANGE_U16(x) ((((x)&0xFF00) >> 8) + (((x)&0xFF) << 8))
 
 // Scanner Variables
+BLEDevice *pBLEDev;
 BLEScan *pBLEScan;
 
-// MQTT MSG
-char logs[255];
-char log_msg[255];
-char mqtt_msg[120];
-uint16_t msg_error;
-
-char scan_topic[60];
+char scan_topic[60], telemetry_topic[60];
 const char *mqtt_scan_prefix = "ESP32 BLE Scanner/Scan/";
 const char *status_topic = "ESP32 BLE Scanner/Status/";
+const char *mqtt_telemetry_prefix = "ESP32 BLE Scanner/tele/";
 
 const char settingsFile[15] = "/settings.json";
 const char devicesFile[15] = "/devices.json";
 
-StaticJsonDocument<1024> settings;
-StaticJsonDocument<1024> devices;
+StaticJsonDocument<1024> settings, devices;
 
 // IPAddress ip(192, 168, 1, 177);  // not in use
 
@@ -54,6 +49,7 @@ AsyncMqttClient mqttClient;
 
 // Webserver
 AsyncWebServer server(80);
+AsyncWebSocket ws("/ws");
 int wifi_errors = 0;
 
 // END OF DEFINITION
@@ -64,17 +60,25 @@ void reboot() {
   ESP.restart();
 }
 
+void write_to_logs(const char *new_log_entry) {
+  // Copies to logs to publish in Weblog
+  ws.printfAll(new_log_entry);
+  Serial.println(new_log_entry);
+}
+
 //
 // Settings functions
 //
 
-String loadFile(const char *filename) {
+String loadFile(const char *filename, String defaultValue) {
   File file = SPIFFS.open(filename);
-  if (!file) {
-    Serial.printf("Unable to load %s", filename);
+  String data;
+  if (file) {
+    data = file.readString();
+    file.close();
+  } else {
+    data = defaultValue;
   }
-  String data = file.readString();
-  file.close();
   return data;
 }
 
@@ -91,7 +95,7 @@ void saveJson(StaticJsonDocument<1024> json, const char *filename) {
 void saveSettings() { saveJson(settings, settingsFile); }
 
 void loadSettings() {
-  String data = loadFile(settingsFile);
+  String data = loadFile(settingsFile, "{}");
 
   DeserializationError json_error = deserializeJson(settings, data);
   if (json_error) {
@@ -108,7 +112,7 @@ void loadSettings() {
 void saveDevices() { saveJson(devices, devicesFile); }
 
 void loadDevices() {
-  String data = loadFile(devicesFile);
+  String data = loadFile(devicesFile, "[]");
 
   DeserializationError json_error = deserializeJson(devices, data);
   if (json_error) {
@@ -260,7 +264,6 @@ bool savePostedJson(AsyncWebParameter *p, StaticJsonDocument<1024> json,
   if (json_error) {
     write_to_logs("DeserializeJson() failed: ");
     write_to_logs(json_error.c_str());
-    write_to_logs(" \n");
   } else {
     saveJson(json, filename);
     return true;
@@ -268,9 +271,24 @@ bool savePostedJson(AsyncWebParameter *p, StaticJsonDocument<1024> json,
   return false;
 }
 
-//
-// FUNCTIONS
-//
+void check_mqtt_msg(uint16_t error_state) {
+  if (error_state == 0) {
+    write_to_logs("Error publishing MQTT Message");
+  }
+}
+
+void connectToMqtt() {
+  write_to_logs("Connecting to MQTT...");
+  mqttClient.connect();
+}
+
+void onMqttConnect(bool sessionPresent) {
+  write_to_logs("Connected to MQTT");
+}
+
+void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
+  write_to_logs("Disconnected from MQTT");
+}
 
 void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
   Serial.println("User connected to Hotspot");
@@ -284,6 +302,9 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
   Serial.println("WiFi connected");
   Serial.print("IP address: ");
   Serial.println(WiFi.localIP());
+
+  delay(3000);
+  connectToMqtt();
 }
 
 void WiFi_Controller() {
@@ -321,6 +342,15 @@ void WiFi_Controller() {
   }
 }
 
+void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
+  if(type == WS_EVT_CONNECT){
+    Serial.println("Websocket client connection received");
+    client->text("Connected to websocket");
+  } else if(type == WS_EVT_DISCONNECT){
+    Serial.println("Client disconnected");
+  }
+}
+
 // Alternative Range Calculation
 /*
 float calculateAccuracy(double txPower, double rssi_calc) {
@@ -350,18 +380,6 @@ float calculateAccuracy(double txPower, double rssi_calc) {
         return round(distFl * 100) / 100;
 }
 */
-
-void write_to_logs(const char *new_log_entry) {
-  strncat(logs, new_log_entry,
-          sizeof(logs));  // Copies to logs to publish in Weblog
-  Serial.println(new_log_entry);
-}
-
-void check_mqtt_msg(uint16_t error_state) {
-  if (error_state == 0) {
-    write_to_logs("Error publishing MQTT Message \n");
-  }
-}
 
 // Distance Calculation
 float calculateAccuracy(float txCalibratedPower, float rssi) {
@@ -397,22 +415,19 @@ const char *getDeviceName(const char *uuid) {
 }
 
 void sendDeviceMqtt(const char *uuid, const char *name, float distance) {
-  if (strlen(uuid) == 0 || strlen(name) == 0) {
-    return;
-  }
-  sprintf(mqtt_msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f } \n",
+  char msg[120];
+  sprintf(msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f }",
           uuid, name, distance);
   // sprintf(mqtt_msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\":
   // %f, \"rssi\": %i, \"signalPower\": %i } \n", uuid, name, distance,
-  // rssi, power ); Send Scanning logs to Webserver Mainpage / Index Page
+  // rssi, power );
+  // Send Scanning logs to Webserver Mainpage / Index Page
   // | write_to_logs(mqtt_msg); causing bug
-  server.on("/send_scan_results", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/plain", mqtt_msg);
-  });
   // Publish to MQTT
-  msg_error = mqttClient.publish(scan_topic, 1, false, mqtt_msg);
+  uint16_t msg_error;
+  msg_error = mqttClient.publish(scan_topic, 1, false, msg);
   check_mqtt_msg(msg_error);
-  Serial.println(mqtt_msg);
+  write_to_logs(msg);
   //*mqtt_msg = '\0'; // Clear memory
 }
 
@@ -423,36 +438,37 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     }
     std::string strManufacturerData = advertisedDevice->getManufacturerData();
     if (!isBeacon(strManufacturerData)) {
+      pBLEDev->addIgnored(advertisedDevice->getAddress());
       return;
     }
     BLEBeacon oBeacon = BLEBeacon();
     oBeacon.setData(strManufacturerData);
     const char *uuid = oBeacon.getProximityUUID().toString().c_str();
     const char *name = getDeviceName(uuid);
+    if (strlen(name) == 0) {
+      return;
+    }
     int rssi = advertisedDevice->getRSSI();
     int8_t power = oBeacon.getSignalPower();
     float distance = calculateAccuracy(power, rssi);
+    // float distance = getAverageDistance(uuid, calculateAccuracy(power,
+    // rssi));
     sendDeviceMqtt(uuid, name, distance);
   }
 };
 
-// connect to mqtt
-
-void connectToMqtt() {
-  write_to_logs("Connecting to MQTT... \n");
-  mqttClient.connect();
-}
-
-void onMqttConnect(bool sessionPresent) {
-  write_to_logs("Connected to MQTT. \n");
-}
-
-void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
-  write_to_logs("Disconnected from MQTT. \n");
-  if (WiFi.isConnected()) {
-    delay(1000);
-    connectToMqtt();
-  }
+void sendTelemetry(NimBLEScanResults devices) {
+  char msg[100];
+  int uptime = (int)(esp_timer_get_time() / 1000000);
+  sprintf(msg,
+          "{ \"results_last_scan\": \"%i\", \"free_heap\": \"%i\", \"uptime\": "
+          "\"%i\" }",
+          devices.getCount(), ESP.getFreeHeap(), uptime);
+  ws.printfAll(msg);
+  uint16_t msg_error;
+  msg_error = mqttClient.publish(telemetry_topic, 1, false, msg);
+  check_mqtt_msg(msg_error);
+  Serial.println(msg);
 }
 
 //
@@ -470,6 +486,11 @@ void startWifi() {
 
   WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);  // Dyn IP
   // WiFi.config(ip, INADDR_NONE, INADDR_NONE, INADDR_NONE);  // Fixed IP
+
+  char msg[50];
+  sprintf(msg, "Connecting to WiFi @ %s:%s", ssid, password);
+  write_to_logs(msg);
+
   WiFi.setHostname(hostname);
   WiFi.begin(ssid, password);
 
@@ -489,6 +510,8 @@ void startMqtt() {
   // Combine Room and Prefix to MQTT topic
   strcpy(scan_topic, mqtt_scan_prefix);
   strcat(scan_topic, settings["device"]["room"]);
+  strcpy(telemetry_topic, mqtt_telemetry_prefix);
+  strcat(telemetry_topic, settings["device"]["room"]);
 
   mqttClient.onConnect(onMqttConnect);
   mqttClient.onDisconnect(onMqttDisconnect);
@@ -511,6 +534,7 @@ void startMqtt() {
   delay(500);
 
   // Publish online status
+  uint16_t msg_error;
   msg_error = mqttClient.publish(status_topic, 1, true, "online");
   check_mqtt_msg(msg_error);
 }
@@ -518,8 +542,9 @@ void startMqtt() {
 void startScanner() {
   int interval = atoi(settings["bluetooth"]["scan_interval"]);
   int window = (int)(interval * 0.9);
-  BLEDevice::init("");
-  pBLEScan = BLEDevice::getScan();  // create new scan
+  pBLEDev = new BLEDevice;
+  pBLEDev->init("");
+  pBLEScan = pBLEDev->getScan();  // create new scan
   pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
   // active scan uses more power, but get results faster
   pBLEScan->setActiveScan(true);
@@ -537,12 +562,6 @@ void startWebServer() {
   // Webserver Mainpage
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(SPIFFS, "/web/index.html", String(), false);
-  });
-
-  // Send Scanning logs to Webserver Mainpage / Index Page
-  server.on("/send_logs", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/plain", logs);
-    *logs = '\0';  // Release memory
   });
 
   // Settings page
@@ -614,6 +633,9 @@ void startWebServer() {
     }
   });
 
+  ws.onEvent(onWsEvent);
+  server.addHandler(&ws);
+
   // Start Webserver
   server.begin();
 }
@@ -621,11 +643,11 @@ void startWebServer() {
 void setup() {
   Serial.begin(115200);
   Serial.println("");
-  write_to_logs("Starting...\n");
+  write_to_logs("Starting...");
 
   // Initialize SPIFFS
   if (!SPIFFS.begin(true)) {
-    write_to_logs("Error initializing SPIFFS \n");
+    write_to_logs("Error initializing SPIFFS");
     while (true) {
     }
   }
@@ -656,7 +678,7 @@ void loop() {
     if (!pBLEScan->isScanning()) {
       int scanTime = (int)settings["bluetooth"]["scan_time"];
       Serial.println("Scanning...");
-      pBLEScan->start(scanTime, false);
+      pBLEScan->start(scanTime, sendTelemetry, false);
       Serial.println("_____________________________________");
       // delete results fromBLEScan buffer to release memory
       pBLEScan->clearResults();
