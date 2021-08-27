@@ -395,13 +395,7 @@ float calculateAccuracy(float txCalibratedPower, float rssi) {
 }
 
 // Checks if devices are inside devices.json
-bool devices_set_up() {
-  if (devices.size() < 1) {
-    return false;
-  } else {
-    return true;
-  }
-}
+bool devices_set_up() { return (devices.size() > 0); }
 
 // float getAverageDistance(const char *uuid, float distance) {
 //   if (deviceDistances.count(uuid) == 0) {
