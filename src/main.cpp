@@ -291,7 +291,8 @@ void onMqttConnect(bool sessionPresent) {
 
   // Set last will (msg that broker will send when connection to ESP32 is gone)
   mqttClient.setWill(status_topic, 1, true, "offline");
-  
+
+
   // Publish online status
   uint16_t msg_error;
   msg_error = mqttClient.publish(status_topic, 1, true, "online");
