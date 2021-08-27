@@ -278,21 +278,17 @@ void check_mqtt_msg(uint16_t error_state) {
 }
 
 void connectToMqtt() {
-  if(!mqttClient.connected()) {
-    write_to_logs("Connecting to MQTT");
-    mqttClient.connect();
-  } else {
-    write_to_logs("Already connected to MQTT");
-  }
+  write_to_logs("Connecting to MQTT");
+  mqttClient.connect();
 }
 
 void onMqttConnect(bool sessionPresent) {
   write_to_logs("Connected to MQTT");
 
-  // Publish online status
-
+  // Set Last will when connection to ESP32 is gone
   mqttClient.setWill(status_topic, 1, true, "offline");
   
+  // Publish online status
   uint16_t msg_error;
   msg_error = mqttClient.publish(status_topic, 1, true, "online");
   check_mqtt_msg(msg_error);
@@ -302,9 +298,6 @@ void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
   char msg[255];
   sprintf(msg, "Disconnected from MQTT with reason: %d\n", reason);
   write_to_logs(msg);
-
-  delay(3000);
-  connectToMqtt();
 }
 
 void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
@@ -478,15 +471,14 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     if(mqttClient.connected()) {
       sendDeviceMqtt(uuid, name, distance);
     } else {
-      char msg[255];
-      sprintf("Found device %s but MQTT is not connected", name);
+      connectToMqtt();
     }
   }
 };
 
 void sendTelemetry(NimBLEScanResults devices) {
   if(mqttClient.connected()) {
-    char msg[255];
+    char msg[100];
     int uptime = (int)(esp_timer_get_time() / 1000000);
     sprintf(msg,
             "{ \"results_last_scan\": \"%i\", \"free_heap\": \"%i\", \"uptime\": "
