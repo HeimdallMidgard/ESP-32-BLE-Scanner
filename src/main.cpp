@@ -27,10 +27,6 @@
 BLEDevice *pBLEDev;
 BLEScan *pBLEScan;
 
-// MQTT MSG
-char logs[255], log_msg[255], mqtt_msg[120];
-uint16_t msg_error;
-
 char scan_topic[60], telemetry_topic[60];
 const char *mqtt_scan_prefix = "ESP32 BLE Scanner/Scan/";
 const char *status_topic = "ESP32 BLE Scanner/Status/";
@@ -53,6 +49,7 @@ AsyncMqttClient mqttClient;
 
 // Webserver
 AsyncWebServer server(80);
+AsyncWebSocket ws("/ws");
 int wifi_errors = 0;
 
 // END OF DEFINITION
@@ -65,7 +62,7 @@ void reboot() {
 
 void write_to_logs(const char *new_log_entry) {
   // Copies to logs to publish in Weblog
-  strncat(logs, new_log_entry, sizeof(logs));
+  ws.printfAll(new_log_entry);
   Serial.println(new_log_entry);
 }
 
@@ -267,7 +264,6 @@ bool savePostedJson(AsyncWebParameter *p, StaticJsonDocument<1024> json,
   if (json_error) {
     write_to_logs("DeserializeJson() failed: ");
     write_to_logs(json_error.c_str());
-    write_to_logs(" \n");
   } else {
     saveJson(json, filename);
     return true;
@@ -277,21 +273,21 @@ bool savePostedJson(AsyncWebParameter *p, StaticJsonDocument<1024> json,
 
 void check_mqtt_msg(uint16_t error_state) {
   if (error_state == 0) {
-    write_to_logs("Error publishing MQTT Message \n");
+    write_to_logs("Error publishing MQTT Message");
   }
 }
 
 void connectToMqtt() {
-  write_to_logs("Connecting to MQTT... \n");
+  write_to_logs("Connecting to MQTT...");
   mqttClient.connect();
 }
 
 void onMqttConnect(bool sessionPresent) {
-  write_to_logs("Connected to MQTT. \n");
+  write_to_logs("Connected to MQTT");
 }
 
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
-  write_to_logs("Disconnected from MQTT. \n");
+  write_to_logs("Disconnected from MQTT");
 }
 
 void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
@@ -343,6 +339,15 @@ void WiFi_Controller() {
     delay(500);
     Serial.print("Event IP address: ");
     Serial.println(WiFi.softAPIP());
+  }
+}
+
+void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void * arg, uint8_t *data, size_t len) {
+  if(type == WS_EVT_CONNECT){
+    Serial.println("Websocket client connection received");
+    client->text("Connected to websocket");
+  } else if(type == WS_EVT_DISCONNECT){
+    Serial.println("Client disconnected");
   }
 }
 
@@ -410,22 +415,19 @@ const char *getDeviceName(const char *uuid) {
 }
 
 void sendDeviceMqtt(const char *uuid, const char *name, float distance) {
-  if (strlen(uuid) == 0 || strlen(name) == 0) {
-    return;
-  }
-  sprintf(mqtt_msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f } \n",
+  char msg[120];
+  sprintf(msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f }",
           uuid, name, distance);
   // sprintf(mqtt_msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\":
   // %f, \"rssi\": %i, \"signalPower\": %i } \n", uuid, name, distance,
-  // rssi, power ); Send Scanning logs to Webserver Mainpage / Index Page
+  // rssi, power );
+  // Send Scanning logs to Webserver Mainpage / Index Page
   // | write_to_logs(mqtt_msg); causing bug
-  server.on("/send_scan_results", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/plain", mqtt_msg);
-  });
   // Publish to MQTT
-  msg_error = mqttClient.publish(scan_topic, 1, false, mqtt_msg);
+  uint16_t msg_error;
+  msg_error = mqttClient.publish(scan_topic, 1, false, msg);
   check_mqtt_msg(msg_error);
-  Serial.println(mqtt_msg);
+  write_to_logs(msg);
   //*mqtt_msg = '\0'; // Clear memory
 }
 
@@ -460,8 +462,10 @@ void sendTelemetry(NimBLEScanResults devices) {
   int uptime = (int)(esp_timer_get_time() / 1000000);
   sprintf(msg,
           "{ \"results_last_scan\": \"%i\", \"free_heap\": \"%i\", \"uptime\": "
-          "\"%i\" } \n",
+          "\"%i\" }",
           devices.getCount(), ESP.getFreeHeap(), uptime);
+  ws.printfAll(msg);
+  uint16_t msg_error;
   msg_error = mqttClient.publish(telemetry_topic, 1, false, msg);
   check_mqtt_msg(msg_error);
   Serial.println(msg);
@@ -483,8 +487,9 @@ void startWifi() {
   WiFi.config(INADDR_NONE, INADDR_NONE, INADDR_NONE, INADDR_NONE);  // Dyn IP
   // WiFi.config(ip, INADDR_NONE, INADDR_NONE, INADDR_NONE);  // Fixed IP
 
-  sprintf(log_msg, "Connecting to WiFi @ %s:%s \n", ssid, password);
-  write_to_logs(log_msg);
+  char msg[50];
+  sprintf(msg, "Connecting to WiFi @ %s:%s", ssid, password);
+  write_to_logs(msg);
 
   WiFi.setHostname(hostname);
   WiFi.begin(ssid, password);
@@ -529,6 +534,7 @@ void startMqtt() {
   delay(500);
 
   // Publish online status
+  uint16_t msg_error;
   msg_error = mqttClient.publish(status_topic, 1, true, "online");
   check_mqtt_msg(msg_error);
 }
@@ -556,12 +562,6 @@ void startWebServer() {
   // Webserver Mainpage
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
     request->send(SPIFFS, "/web/index.html", String(), false);
-  });
-
-  // Send Scanning logs to Webserver Mainpage / Index Page
-  server.on("/send_logs", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(200, "text/plain", logs);
-    *logs = '\0';  // Release memory
   });
 
   // Settings page
@@ -633,6 +633,9 @@ void startWebServer() {
     }
   });
 
+  ws.onEvent(onWsEvent);
+  server.addHandler(&ws);
+
   // Start Webserver
   server.begin();
 }
@@ -640,11 +643,11 @@ void startWebServer() {
 void setup() {
   Serial.begin(115200);
   Serial.println("");
-  write_to_logs("Starting...\n");
+  write_to_logs("Starting...");
 
   // Initialize SPIFFS
   if (!SPIFFS.begin(true)) {
-    write_to_logs("Error initializing SPIFFS \n");
+    write_to_logs("Error initializing SPIFFS");
     while (true) {
     }
   }
