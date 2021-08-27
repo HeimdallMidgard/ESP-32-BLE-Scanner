@@ -488,11 +488,13 @@ void startWifi() {
   // WiFi.config(ip, INADDR_NONE, INADDR_NONE, INADDR_NONE);  // Fixed IP
 
   char msg[50];
-  sprintf(msg, "Connecting to WiFi @ %s:%s", ssid, password);
+  sprintf(msg, "Connecting to WiFi @ %s:%s \n", ssid, password);
   write_to_logs(msg);
 
   WiFi.setHostname(hostname);
+  delay(1000);
   WiFi.begin(ssid, password);
+  delay(5000);
 
   WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_STA_CONNECTED);
   WiFi.onEvent(WiFiGotIP, SYSTEM_EVENT_STA_GOT_IP);
@@ -670,7 +672,6 @@ void setup() {
 
 void loop() {
   if ((WiFi.status() == WL_DISCONNECTED) && (wifi_ap_result == false)) {
-    Serial.println(WiFi.status());
     WiFi_Controller();
 
   } else if ((WiFi.status() == WL_CONNECTED)) {
