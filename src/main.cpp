@@ -278,14 +278,21 @@ void check_mqtt_msg(uint16_t error_state) {
 }
 
 void connectToMqtt() {
-  write_to_logs("Connecting to MQTT");
-  mqttClient.connect();
+  if(!mqttClient.connected()) {
+    write_to_logs("Connecting to MQTT");
+    mqttClient.connect();
+  } else {
+    write_to_logs("Already connected to MQTT");
+  }
 }
 
 void onMqttConnect(bool sessionPresent) {
   write_to_logs("Connected to MQTT");
 
   // Publish online status
+
+  mqttClient.setWill(status_topic, 1, true, "offline");
+  
   uint16_t msg_error;
   msg_error = mqttClient.publish(status_topic, 1, true, "online");
   check_mqtt_msg(msg_error);
@@ -295,19 +302,21 @@ void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
   char msg[255];
   sprintf(msg, "Disconnected from MQTT with reason: %d\n", reason);
   write_to_logs(msg);
+
+  delay(3000);
+  connectToMqtt();
 }
 
 void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
-  Serial.println("User connected to Hotspot");
+  Serial.println("WiFi connected");
 }
 
 void WiFiStationDisconnected(WiFiEvent_t event, WiFiEventInfo_t info) {
-  Serial.println("User disconnected");
+  Serial.println("WiFi disconnected");
 }
 
 void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
-  Serial.println("WiFi connected");
-  Serial.print("IP address: ");
+  Serial.print("WiFi connected successfuly • IP: ");
   Serial.println(WiFi.localIP());
 
   delay(3000);
@@ -315,11 +324,13 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
 }
 
 void WiFi_Controller() {
+  if(WiFi.status() == WL_CONNECTED || wifi_ap_result == true) {
+    return;
+  }
   wifi_errors++;
   Serial.println(" ");
   Serial.print("Wifi Errors: ");
   Serial.println(wifi_errors);
-  delay(2500);
 
   if ((wifi_errors < 9) && (wifi_ap_result == false)) {
     Serial.println("Disconnected from WiFi access point");
@@ -329,7 +340,6 @@ void WiFi_Controller() {
     const char *password = settings["wifi"]["password"];
 
     WiFi.begin(ssid, password);
-    delay(5000);
 
   } else if ((wifi_errors > 9) && (wifi_ap_result == false)) {
     Serial.println(" ");
@@ -468,14 +478,15 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     if(mqttClient.connected()) {
       sendDeviceMqtt(uuid, name, distance);
     } else {
-      connectToMqtt();
+      char msg[255];
+      sprintf("Found device %s but MQTT is not connected", name);
     }
   }
 };
 
 void sendTelemetry(NimBLEScanResults devices) {
   if(mqttClient.connected()) {
-    char msg[100];
+    char msg[255];
     int uptime = (int)(esp_timer_get_time() / 1000000);
     sprintf(msg,
             "{ \"results_last_scan\": \"%i\", \"free_heap\": \"%i\", \"uptime\": "
@@ -510,14 +521,15 @@ void startWifi() {
   write_to_logs(msg);
 
   WiFi.setHostname(hostname);
-  delay(1000);
-  WiFi.begin(ssid, password);
-  delay(3000);
 
   WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_STA_CONNECTED);
   WiFi.onEvent(WiFiGotIP, SYSTEM_EVENT_STA_GOT_IP);
   WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_AP_STACONNECTED);
   WiFi.onEvent(WiFiStationDisconnected, SYSTEM_EVENT_AP_STADISCONNECTED);
+
+  delay(1000);
+  WiFi.begin(ssid, password);
+  delay(3000);
 }
 
 void startMqtt() {
@@ -539,7 +551,6 @@ void startMqtt() {
 
   mqttClient.onConnect(onMqttConnect);
   mqttClient.onDisconnect(onMqttDisconnect);
-  mqttClient.setWill(status_topic, 1, true, "offline");
 
   randomSeed(micros());
 
@@ -689,17 +700,15 @@ void setup() {
 void loop() {
 
   if ((WiFi.status() == WL_DISCONNECTED) && (wifi_ap_result == false)) {
+    delay(5000);
     WiFi_Controller();
-
   } else if ((WiFi.status() == WL_CONNECTED)) {
-
       // Reset Wifi Error Counter when the connection is working
       if (wifi_errors > 0){ 
         wifi_errors = 0;
       }
 
       if (devices_set_up() == true) {
-
           // Scanner
           if (!pBLEScan->isScanning()) {
             int scanTime = (int)settings["bluetooth"]["scan_time"];
