@@ -498,7 +498,7 @@ void startWifi() {
   WiFi.setHostname(hostname);
   delay(1000);
   WiFi.begin(ssid, password);
-  delay(5000);
+  delay(3000);
 
   WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_STA_CONNECTED);
   WiFi.onEvent(WiFiGotIP, SYSTEM_EVENT_STA_GOT_IP);
@@ -671,6 +671,10 @@ void setup() {
   startMqtt();
   startScanner();
   delay(500);
+
+  if (devices_set_up() == false) {
+    Serial.println("No devices set up. Not scanning.");
+  }
 }
 
 void loop() {
@@ -688,11 +692,8 @@ void loop() {
             Serial.println("Scanning...");
             pBLEScan->start(scanTime, sendTelemetry, false);
             Serial.println("_____________________________________");
-            // delete results fromBLEScan buffer to release memory
-            pBLEScan->clearResults();
+            pBLEScan->clearResults(); // delete results fromBLEScan buffer to release memory
           }
-      }else{
-        Serial.println("No devices set up. Not scanning.");
       }
   }
 
