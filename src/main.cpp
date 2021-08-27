@@ -278,16 +278,23 @@ void check_mqtt_msg(uint16_t error_state) {
 }
 
 void connectToMqtt() {
-  write_to_logs("Connecting to MQTT...");
+  write_to_logs("Connecting to MQTT");
   mqttClient.connect();
 }
 
 void onMqttConnect(bool sessionPresent) {
   write_to_logs("Connected to MQTT");
+
+  // Publish online status
+  uint16_t msg_error;
+  msg_error = mqttClient.publish(status_topic, 1, true, "online");
+  check_mqtt_msg(msg_error);
 }
 
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
-  write_to_logs("Disconnected from MQTT");
+  char msg[255];
+  sprintf(msg, "Disconnected from MQTT with reason: %d\n", reason);
+  write_to_logs(msg);
 }
 
 void WiFiStationConnected(WiFiEvent_t event, WiFiEventInfo_t info) {
@@ -457,22 +464,29 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     float distance = calculateAccuracy(power, rssi);
     // float distance = getAverageDistance(uuid, calculateAccuracy(power,
     // rssi));
-    sendDeviceMqtt(uuid, name, distance);
+
+    if(mqttClient.connected()) {
+      sendDeviceMqtt(uuid, name, distance);
+    } else {
+      connectToMqtt();
+    }
   }
 };
 
 void sendTelemetry(NimBLEScanResults devices) {
-  char msg[100];
-  int uptime = (int)(esp_timer_get_time() / 1000000);
-  sprintf(msg,
-          "{ \"results_last_scan\": \"%i\", \"free_heap\": \"%i\", \"uptime\": "
-          "\"%i\" }",
-          devices.getCount(), ESP.getFreeHeap(), uptime);
-  ws.printfAll(msg);
-  uint16_t msg_error;
-  msg_error = mqttClient.publish(telemetry_topic, 1, false, msg);
-  check_mqtt_msg(msg_error);
-  Serial.println(msg);
+  if(mqttClient.connected()) {
+    char msg[100];
+    int uptime = (int)(esp_timer_get_time() / 1000000);
+    sprintf(msg,
+            "{ \"results_last_scan\": \"%i\", \"free_heap\": \"%i\", \"uptime\": "
+            "\"%i\" }",
+            devices.getCount(), ESP.getFreeHeap(), uptime);
+    ws.printfAll(msg);
+    uint16_t msg_error;
+    msg_error = mqttClient.publish(telemetry_topic, 1, false, msg);
+    check_mqtt_msg(msg_error);
+    Serial.println(msg);
+  }
 }
 
 //
@@ -513,6 +527,10 @@ void startMqtt() {
   const char *mqttUser = settings["mqtt"]["user"];
   const char *mqttPassword = settings["mqtt"]["password"];
 
+  char msg[255];
+  sprintf(msg, "Setting up MQTT • %s:%lu • %s@%s \n", mqttHost, mqttPort, mqttUser, mqttPassword);
+  write_to_logs(msg);
+
   // Combine Room and Prefix to MQTT topic
   strcpy(scan_topic, mqtt_scan_prefix);
   strcat(scan_topic, settings["device"]["room"]);
@@ -534,15 +552,6 @@ void startMqtt() {
   } else {
     mqttClient.setCredentials(mqttUser, mqttPassword);
   }
-
-  delay(500);
-  connectToMqtt();
-  delay(500);
-
-  // Publish online status
-  uint16_t msg_error;
-  msg_error = mqttClient.publish(status_topic, 1, true, "online");
-  check_mqtt_msg(msg_error);
 }
 
 void startScanner() {
