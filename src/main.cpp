@@ -391,6 +391,17 @@ float calculateAccuracy(float txCalibratedPower, float rssi) {
   return r;
 }
 
+
+//Checks if devices are inside devices.json
+bool devices_set_up() {
+  if (devices.size() < 1){
+    return false;
+  }else{
+    return true;
+  }
+}
+
+
 // Scanner
 
 bool isBeacon(std::string strManufacturerData) {
@@ -416,19 +427,12 @@ const char *getDeviceName(const char *uuid) {
 
 void sendDeviceMqtt(const char *uuid, const char *name, float distance) {
   char msg[120];
-  sprintf(msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f }",
-          uuid, name, distance);
-  // sprintf(mqtt_msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\":
-  // %f, \"rssi\": %i, \"signalPower\": %i } \n", uuid, name, distance,
-  // rssi, power );
-  // Send Scanning logs to Webserver Mainpage / Index Page
-  // | write_to_logs(mqtt_msg); causing bug
-  // Publish to MQTT
+  sprintf(msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f }", uuid, name, distance);
+
   uint16_t msg_error;
   msg_error = mqttClient.publish(scan_topic, 1, false, msg);
   check_mqtt_msg(msg_error);
   write_to_logs(msg);
-  //*mqtt_msg = '\0'; // Clear memory
 }
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
@@ -621,8 +625,7 @@ void startWebServer() {
     Serial.println("POST Request to /api/devices");
     bool saved = false;
     if (request->hasParam("devices", true)) {
-      saved = savePostedJson(request->getParam("devices", true), devices,
-                             devicesFile);
+      saved = savePostedJson(request->getParam("devices", true), devices, devicesFile);
     } else {
       Serial.println("Has no devices param");
     }
@@ -671,18 +674,26 @@ void setup() {
 }
 
 void loop() {
+
   if ((WiFi.status() == WL_DISCONNECTED) && (wifi_ap_result == false)) {
     WiFi_Controller();
 
   } else if ((WiFi.status() == WL_CONNECTED)) {
-    // Scanner
-    if (!pBLEScan->isScanning()) {
-      int scanTime = (int)settings["bluetooth"]["scan_time"];
-      Serial.println("Scanning...");
-      pBLEScan->start(scanTime, sendTelemetry, false);
-      Serial.println("_____________________________________");
-      // delete results fromBLEScan buffer to release memory
-      pBLEScan->clearResults();
-    }
+
+      if (devices_set_up() == true) {
+
+          // Scanner
+          if (!pBLEScan->isScanning()) {
+            int scanTime = (int)settings["bluetooth"]["scan_time"];
+            Serial.println("Scanning...");
+            pBLEScan->start(scanTime, sendTelemetry, false);
+            Serial.println("_____________________________________");
+            // delete results fromBLEScan buffer to release memory
+            pBLEScan->clearResults();
+          }
+      }else{
+        Serial.println("No devices set up. Not scanning.");
+      }
   }
+
 }
