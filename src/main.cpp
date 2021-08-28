@@ -479,7 +479,8 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
       sendDeviceMqtt(uuid, name, distance);
     } else {
       char msg[255];
-      sprintf("Found device %s but MQTT is not connected", name);
+      sprintf(msg, "Found device %s but MQTT is not connected", name);
+      write_to_logs(msg);
     }
   }
 };
