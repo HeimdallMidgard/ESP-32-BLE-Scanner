@@ -1,3 +1,5 @@
+#include <any>
+
 // Arduino
 #include <Arduino.h>
 #include <ArduinoJson.h> //JSON for Saving Values and Sending Data over MQTT
@@ -126,7 +128,7 @@ void loadDevices() {
   }
 }
 
-bool initSetting(const char key1[], const char key2[], const char defaultValue[]) {
+bool initSetting(const char key1[], const char key2[], std::any defaultValue) {
   bool changed = false;
   if (settings[key1] == nullptr) {
     Serial.printf("settings.%s not set, creating.\n", key1);
