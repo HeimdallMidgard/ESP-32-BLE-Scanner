@@ -1,0 +1,75 @@
+.row [class*=" col-"],
+.row [class^="col-"] .offset-center {
+  margin-left: auto;
+  margin-right: auto;
+}
+.nav-item a:focus {
+  outline: none;
+  box-shadow: none;
+}
+pre > code.no-y-wrap {
+  white-space: nowrap;
+}
+.h-panel {
+  height: calc(100vh - 110px);
+}
+pre {
+  margin-bottom: -45px;
+  margin-top: -30px;
+}
+.input-label {
+  width: 100%;
+  text-align: right;
+}
+@media screen and (max-width: 767px) {
+  .header .header-nav {
+    overflow: hidden;
+  }
+  .header .header-nav.active {
+    height: 200px;
+  }
+  .input-label {
+    width: 100%;
+    text-align: left;
+  }
+}
+.snackbar {
+  visibility: hidden;
+  min-width: 250px;
+  margin-left: -125px;
+  background-color: #333;
+  color: #eee;
+  text-align: center;
+  border-radius: 2px;
+  padding: 16px;
+  position: fixed;
+  z-index: 200;
+}
+.snackbar.top-center {
+  top: 15px;
+  left: 50%;
+}
+.snackbar.bottom-center {
+  bottom: 30px;
+  left: 50%;
+}
+.snackbar.top-center.show,
+.snackbar.top-left.show,
+.snackbar.top-right.show {
+  visibility: visible;
+  -webkit-animation: fadeinTop 0.5s, fadeoutTop 0.5s 2.5s;
+  animation: fadeinTop 0.5s, fadeoutTop 0.5s 2.5s;
+}
+.snackbar.bottom-center.show,
+.snackbar.bottom-left.show,
+.snackbar.bottom-right.show {
+  visibility: visible;
+  -webkit-animation: fadeinBottom 0.5s, fadeoutBottom 0.5s 2.5s;
+  animation: fadeinBottom 0.5s, fadeoutBottom 0.5s 2.5s;
+}
+.snackbar.success {
+  background-color: #0da168;
+}
+.snackbar.error {
+  background-color: #c9261a;
+}
