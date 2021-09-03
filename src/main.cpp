@@ -1,5 +1,3 @@
-#include <any>
-
 // Arduino
 #include <Arduino.h>
 #include <ArduinoJson.h> //JSON for Saving Values and Sending Data over MQTT
@@ -24,6 +22,9 @@
 
 // Scanner
 #define ENDIAN_CHANGE_U16(x) ((((x)&0xFF00) >> 8) + (((x)&0xFF) << 8))
+
+// Set to true to print function names and variables
+bool debug = false;
 
 // Scanner Variables
 BLEDevice *pBLEDev;
@@ -73,62 +74,99 @@ void write_to_logs(const char *new_log_entry) {
 //
 
 String loadFile(const char *filename, String defaultValue) {
+  if (debug) Serial.printf("loadFile(%s, %s)\n", filename, defaultValue.c_str());
   File file = SPIFFS.open(filename);
-  String data;
-  if (file) {
-    data = file.readString();
-    file.close();
-  } else {
-    data = defaultValue;
-  }
+  String data = (file.available()) ? file.readString() : defaultValue;
+  if (data == "null") data = defaultValue;
+  file.close();
   return data;
 }
 
-void saveJson(StaticJsonDocument<1024> json, const char *filename) {
-  File file = SPIFFS.open(filename, "w");
-  if (file) {
-    serializeJson(json, file);
-    Serial.printf("Saved to %s: ", filename);
+void loadJson(const char *filename, StaticJsonDocument<1024> &json, String defaultValue) {
+  if (debug) Serial.printf("loadJson(%s, %s)\n", filename, defaultValue.c_str());
+  String data = loadFile(filename, defaultValue);
+  Serial.println(data);
+
+  DeserializationError json_error = deserializeJson(json, data);
+  if (json_error) {
+    Serial.printf("deserializeJson() for %s failed: \n", filename);
+    Serial.println(json_error.c_str());
+    reboot();
+  } else if (debug) {
+    Serial.printf("Loaded %s: ", filename);
     serializeJson(json, Serial);
     Serial.println();
   }
 }
 
-void saveSettings() { saveJson(settings, settingsFile); }
-
-void loadSettings() {
-  String data = loadFile(settingsFile, "{}");
-
-  DeserializationError json_error = deserializeJson(settings, data);
-  if (json_error) {
-    Serial.printf("deserializeJson() for %s failed: \n", settingsFile);
-    Serial.println(json_error.c_str());
-    reboot();
-  } else {
-    Serial.printf("Loaded %s: ", settingsFile);
-    serializeJson(settings, Serial);
-    Serial.println();
+void saveJson(StaticJsonDocument<1024> &json, const char *filename) {
+  if (debug) Serial.printf("saveJson(%s)\n", filename);
+  File file = SPIFFS.open(filename, "w");
+  if (file) {
+    serializeJson(json, file);
+    if (debug) {
+      Serial.printf("Saved to %s: ", filename);
+      serializeJson(json, Serial);
+      Serial.println();
+    }
   }
 }
+
+void saveSettings() { saveJson(settings, settingsFile); }
+
+void loadSettings() { loadJson(settingsFile, settings, "{}"); }
 
 void saveDevices() { saveJson(devices, devicesFile); }
 
-void loadDevices() {
-  String data = loadFile(devicesFile, "[]");
+void loadDevices() { loadJson(devicesFile, devices, "[]"); }
 
-  DeserializationError json_error = deserializeJson(devices, data);
-  if (json_error) {
-    Serial.printf("deserializeJson() for %s failed: \n", devicesFile);
-    Serial.println(json_error.c_str());
-    reboot();
-  } else {
-    Serial.printf("Loaded %s: ", devicesFile);
-    serializeJson(devices, Serial);
-    Serial.println();
+bool initSetting(const char key1[], const char key2[], const char defaultValue[]) {
+  if (debug) Serial.printf("initSetting(%s, %s, %s)\n", key1, key2, defaultValue);
+  bool changed = false;
+  if (settings[key1] == nullptr) {
+    Serial.printf("settings.%s not set, creating.\n", key1);
+    settings.createNestedObject(key1);
   }
+  if (settings[key1][key2] == nullptr) {
+    Serial.printf("settings.%s.%s not set, setting default.\n", key1, key2);
+    settings[key1][key2] = defaultValue;
+    changed = true;
+  }
+  return changed;
 }
 
-bool initSetting(const char key1[], const char key2[], std::any defaultValue) {
+bool initSetting(const char key1[], const char key2[], int defaultValue) {
+  if (debug) Serial.printf("initSetting(%s, %s, %i)\n", key1, key2, defaultValue);
+  bool changed = false;
+  if (settings[key1] == nullptr) {
+    Serial.printf("settings.%s not set, creating.\n", key1);
+    settings.createNestedObject(key1);
+  }
+  if (settings[key1][key2] == nullptr) {
+    Serial.printf("settings.%s.%s not set, setting default.\n", key1, key2);
+    settings[key1][key2] = defaultValue;
+    changed = true;
+  }
+  return changed;
+}
+
+bool initSetting(const char key1[], const char key2[], float defaultValue) {
+  if (debug) Serial.printf("initSetting(%s, %s, %f)\n", key1, key2, defaultValue);
+  bool changed = false;
+  if (settings[key1] == nullptr) {
+    Serial.printf("settings.%s not set, creating.\n", key1);
+    settings.createNestedObject(key1);
+  }
+  if (settings[key1][key2] == nullptr) {
+    Serial.printf("settings.%s.%s not set, setting default.\n", key1, key2);
+    settings[key1][key2] = defaultValue;
+    changed = true;
+  }
+  return changed;
+}
+
+bool initSetting(const char key1[], const char key2[], bool defaultValue) {
+  if (debug) Serial.printf("initSetting(%s, %s, %d)\n", key1, key2, defaultValue);
   bool changed = false;
   if (settings[key1] == nullptr) {
     Serial.printf("settings.%s not set, creating.\n", key1);
@@ -145,6 +183,7 @@ bool initSetting(const char key1[], const char key2[], std::any defaultValue) {
 bool initSettingsDevice() {
   bool changed = false;
   if (initSetting("device", "room", "")) changed = true;
+  if (initSetting("device", "homeassistant_discovery", true));
   return changed;
 }
 
@@ -159,95 +198,30 @@ bool initSettingsNetwork() {
 bool initSettingsMqtt() {
   bool changed = false;
   if (initSetting("mqtt", "host", "")) changed = true;
-  if (initSetting("mqtt", "port", "1883")) changed = true;
+  if (initSetting("mqtt", "port", 1883)) changed = true;
   if (initSetting("mqtt", "user", "")) changed = true;
   if (initSetting("mqtt", "password", "")) changed = true;
   return changed;
 }
 
-bool initSettingsUi() {
-  bool changed = false;
-  if (initSetting("ui", "style", "default")) changed = true;
-  return changed;
-}
-
 bool initSettingsBluetooth() {
   bool changed = false;
-  if (initSetting("bluetooth", "scan_time", "5")) changed = true;
-  if (initSetting("bluetooth", "scan_interval", "300")) changed = true;
+  if (initSetting("bluetooth", "scan_time", 5)) changed = true;
+  if (initSetting("bluetooth", "scan_interval", 300)) changed = true;
   return changed;
 }
 
 bool initSettings() {
+  if (debug) Serial.println("initSettings()");
   bool changed = false;
   if (initSettingsDevice()) changed = true;
   if (initSettingsNetwork()) changed = true;
   if (initSettingsMqtt()) changed = true;
-  if (initSettingsUi()) changed = true;
   if (initSettingsBluetooth()) changed = true;
   return changed;
 }
 
-bool migrateSettings() {
-  Serial.println("Migrating settings. Currently:");
-  serializeJson(settings, Serial);
-  Serial.print("\n");
-
-  settings["device"]["room"] = settings["room"];
-  settings.remove("room");
-  settings["network"]["ssid"] = settings["ssid"];
-  settings.remove("ssid");
-  settings["network"]["password"] = settings["password"];
-  settings.remove("password");
-  settings["mqtt"]["host"] = settings["mqttServer"];
-  settings.remove("mqttServer");
-  settings["mqtt"]["port"] = settings["mqttPort"];
-  settings.remove("mqttPort");
-  settings["mqtt"]["user"] = settings["mqttUser"];
-  settings.remove("mqttUser");
-  settings["mqtt"]["password"] = settings["mqttPassword"];
-  settings.remove("mqttPassword");
-  return true;
-}
-
-bool migrateDevices() {
-  Serial.println("Migrating devices, currently:");
-  serializeJson(devices, Serial);
-  Serial.print("\n");
-
-  char devicesString[600] = "[";
-  for (int i = 1; i < 4; i++) {
-    char uuid_key[13];
-    sprintf(uuid_key, "device_uuid%i", i);
-    const char *uuid = devices[uuid_key];
-    if (strlen(uuid) == 0) break;
-
-    char name_key[13];
-    sprintf(name_key, "device_name%i", i);
-    const char *name = devices[name_key];
-    if (strlen(name) == 0) break;
-
-    if (strlen(devicesString) > 1) strcat(devicesString, ",");
-    char deviceString[100];
-    sprintf(deviceString, "{\"name\":\"%s\",\"uuid\":\"%s\"}", name, uuid);
-    strcat(devicesString, deviceString);
-  }
-  strcat(devicesString, "]");
-
-  Serial.println("Migrating to:");
-  Serial.println(devicesString);
-
-  return true;
-}
-
-bool checkMigrations() {
-  bool migrated = false;
-  if (settings["ssid"]) migrated = migrateSettings();
-  if (devices["device_uuid1"]) migrated = migrateDevices();
-  return migrated;
-}
-
-bool savePostedJson(AsyncWebParameter *p, StaticJsonDocument<1024> json, const char *filename) {
+bool savePostedJson(AsyncWebParameter *p, StaticJsonDocument<1024> &json, const char *filename) {
   json.clear();
   DeserializationError json_error = deserializeJson(json, p->value());
   if (json_error) {
@@ -279,7 +253,6 @@ void onMqttConnect(bool sessionPresent) {
   // Set last will (msg that broker will send when connection to ESP32 is gone)
   mqttClient.setWill(status_topic, 1, true, "offline");
 
-
   // Publish online status
   uint16_t msg_error;
   msg_error = mqttClient.publish(status_topic, 1, true, "online");
@@ -288,7 +261,7 @@ void onMqttConnect(bool sessionPresent) {
 
 void onMqttDisconnect(AsyncMqttClientDisconnectReason reason) {
   char msg[255];
-  sprintf(msg, "Disconnected from MQTT with reason: %d\n", reason);
+  sprintf(msg, "Disconnected from MQTT with reason: %d\n", (int)reason);
   write_to_logs(msg);
 
   delay(3000);
@@ -422,12 +395,11 @@ bool isBeacon(std::string strManufacturerData) {
 }
 
 const char *getDeviceName(const char *uuid) {
-  const char *name;
-  if (strlen(uuid) == 0) return name;
+  if (strlen(uuid) == 0) return nullptr;
   for (size_t i = 0; i < devices.size(); i++) {
     if (strcmp(uuid, devices[i]["uuid"]) == 0) return devices[i]["name"];
   }
-  return name;
+  return nullptr;
 }
 
 void sendDeviceMqtt(const char *uuid, const char *name, float distance) {
@@ -453,7 +425,7 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     oBeacon.setData(strManufacturerData);
     const char *uuid = oBeacon.getProximityUUID().toString().c_str();
     const char *name = getDeviceName(uuid);
-    if (strlen(name) == 0) return;
+    if (name == nullptr || strlen(name) == 0) return;
 
     int rssi = advertisedDevice->getRSSI();
     int8_t power = oBeacon.getSignalPower();
@@ -461,12 +433,10 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     // float distance = getAverageDistance(uuid, calculateAccuracy(power,
     // rssi));
 
-    if(mqttClient.connected()) {
+    if(mqttClient.connected())
       sendDeviceMqtt(uuid, name, distance);
-    } else {
-      char msg[255];
+    else
       sprintf("Found device %s but MQTT is not connected", name);
-    }
   }
 };
 
@@ -493,6 +463,7 @@ void publishTelemetry(NimBLEScanResults devices) {
 //
 
 void startWifi() {
+  if (debug) Serial.println("startWifi()");
   const char *ssid = settings["network"]["ssid"];
   const char *password = settings["network"]["password"];
   const char *hostname = settings["network"]["hostname"];
@@ -517,14 +488,15 @@ void startWifi() {
 }
 
 void startMqtt() {
+  if (debug) Serial.println("startMqtt()");
   const char *hostname = settings["network"]["hostname"];
   const char *mqttHost = settings["mqtt"]["host"];
-  long mqttPort = settings["mqtt"]["port"];
+  int mqttPort = settings["mqtt"]["port"];
   const char *mqttUser = settings["mqtt"]["user"];
   const char *mqttPassword = settings["mqtt"]["password"];
 
   char msg[255];
-  sprintf(msg, "Setting up MQTT • %s:%lu • %s@%s \n", mqttHost, mqttPort, mqttUser, mqttPassword);
+  sprintf(msg, "Setting up MQTT • %s:%i • %s@%s \n", mqttHost, mqttPort, mqttUser, mqttPassword);
   write_to_logs(msg);
 
   // Combine Room and Prefix to MQTT topic
@@ -546,11 +518,11 @@ void startMqtt() {
     Serial.println("No MQTT User set");
   else
     mqttClient.setCredentials(mqttUser, mqttPassword);
-  }
 }
 
 void startScanner() {
-  int interval = atoi(settings["bluetooth"]["scan_interval"]);
+  if (debug) Serial.println("startScanner()");
+  int interval = settings["bluetooth"]["scan_interval"];
   int window = (int)(interval * 0.9);
   pBLEDev = new BLEDevice;
   pBLEDev->init("");
@@ -563,11 +535,15 @@ void startScanner() {
 }
 
 void startWebServer() {
+  if (debug) Serial.println("startWebserver()");
   // Serve css
   server.serveStatic("/css", SPIFFS, "/web/css");
 
   // Serve js
   server.serveStatic("/js", SPIFFS, "/web/js");
+
+  // Serve partials
+  server.serveStatic("/partials", SPIFFS, "/web/partials");
 
   // Webserver Mainpage
   server.on("/", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -597,7 +573,7 @@ void startWebServer() {
     }
     if (saved) {
       request->send(200);
-      reboot();
+      // reboot();
     } else {
       Serial.println("Unable to save settings");
       request->send(503);
@@ -634,7 +610,6 @@ void startWebServer() {
     }
     if (saved) {
       request->send(200);
-      reboot();
     } else {
       Serial.println("Unable to save devices");
       request->send(503);
@@ -649,6 +624,7 @@ void startWebServer() {
 }
 
 void setup() {
+  if (debug) Serial.println("setup()");
   Serial.begin(115200);
   Serial.println("");
   write_to_logs("Starting...");
@@ -663,7 +639,7 @@ void setup() {
   loadSettings();
   loadDevices();
 
-  if (initSettings() || checkMigrations()) {
+  if (initSettings()) {
     saveSettings();
     saveDevices();
     reboot();
@@ -686,16 +662,19 @@ void loop() {
     // Reset Wifi Error Counter when the connection is working
     if (wifi_errors > 0) wifi_errors = 0;
 
-    if (devices_set_up() == true) {
-      // Scanner
-      if (!pBLEScan->isScanning()) {
-        int scanTime = (int)settings["bluetooth"]["scan_time"];
-        Serial.println("Scanning...");
-        pBLEScan->start(scanTime, publishTelemetry, false);
-        Serial.println("_____________________________________");
-        pBLEScan->clearResults(); // delete results fromBLEScan buffer to
-                                  // release memory
-      }
+    if (devices.size() == 0) {
+      write_to_logs("No devices set up. Not scanning.");
+      delay(5000);
+      return;
     }
+    // Scanner
+    if (pBLEScan->isScanning()) return;
+
+    int scanTime = settings["bluetooth"]["scan_time"];
+    Serial.println("Scanning...");
+    pBLEScan->start(scanTime, publishTelemetry, false);
+    Serial.println("_____________________________________");
+    pBLEScan->clearResults(); // delete results fromBLEScan buffer to
+                              // release memory
   }
 }
