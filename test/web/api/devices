@@ -1,0 +1,12 @@
+[
+  {
+    "name": "Phone 1",
+    "uuid": "8959efd0-d362-4983-aa04-4a041dfb7424",
+    "type": "beacon"
+  },
+  {
+    "name": "Phone 2",
+    "uuid": "4064a07d-015b-4d30-b6eb-0ce54cfabe66",
+    "type": "beacon"
+  }
+]
