@@ -21,21 +21,14 @@
     <script defer src="https://unpkg.com/alpinejs@3.3.1/dist/cdn.min.js"></script>
   </head>
 
-  <body x-data="loadData()">
-    <div class="snackbar bottom-center u-round u-shadow" x-ref="snackbar" x-init="propagate($refs)"></div>
-    <div x-html="await getPartial('header')"></div>
-    <div class="fullscreen row" style="padding-top: 52px">
+  <body x-data="load()">
+    <div class="snackbar bottom-center u-round u-shadow" x-ref="snackbar"></div>
+    <div x-html="await get_partial('header')""></div>
+    <div class="fullscreen row u-overflow-hidden" style="padding-top: 52px"">
       <div
-        :class="getTabClasses('logging')"
-        x-html="await getPartial('logging')"
-      ></div>
-      <div
-        :class="getTabClasses('devices')"
-        x-html="await getPartial('devices')"
-      ></div>
-      <div
-        :class="getTabClasses('settings')"
-        x-html="await getPartial('settings')"
+        x-ref="main"
+        :class="get_tab_classes(tab)"
+        x-html="await get_partial(tab);"
       ></div>
     </div>
   </body>

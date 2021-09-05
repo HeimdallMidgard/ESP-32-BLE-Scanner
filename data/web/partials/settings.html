@@ -1,4 +1,4 @@
-<div class="frame">
+<div class="frame" x-init="settings.$refs = $refs;">
   <div class="tab-container tabs-center">
     <ul>
       <template
@@ -18,23 +18,18 @@
       </template>
     </ul>
   </div>
-  <div>
-    <template
-      x-for="[section, values] in Object.entries(settings.data)"
-      :key="section"
-    >
-      <template
-        x-for="[setting, value] in Object.entries(settings.data[section])"
-      >
+  <div x-data="{ s: settings.data }">
+    <template x-for="[section, values] in Object.entries(s)" :key="section">
+      <template x-for="[setting, value] in Object.entries(s[section])">
         <div
           class="row ignore-screen level animated"
           :class="section == settings.tab ? 'fadeIn' : 'u-none'"
-          x-data="{ input: settings.getInputType(settings.data[section][setting]) }"
+          x-data="{ input: settings.get_input_type(s[section][setting]) }"
         >
           <div class="col-3 ignore-screen level-item">
             <p
               class="m-0 capitalize input-label"
-              x-text="setting.replace('_', ' ') + ':'"
+              x-text="setting.replaceAll('_', ' ') + ':'"
             ></p>
           </div>
           <div
@@ -47,7 +42,7 @@
             >
               <input
                 :id="section + '_' + setting"
-                x-model="settings.data[section][setting]"
+                x-model="s[section][setting]"
                 :type="input.type"
                 :placeholder="setting.replace('_', ' ')"
                 :style="input.style"
@@ -57,7 +52,7 @@
               <div
                 x-show="input.type == 'checkbox'"
                 class="form-ext-toggle__toggler"
-                @click="settings.data[section][setting] = !settings.data[section][setting];"
+                @click="s[section][setting] = !s[section][setting]; settings.dirty = true;"
               >
                 <i></i>
               </div>
@@ -67,5 +62,12 @@
       </template>
     </template>
   </div>
-  <button x-show="settings.dirty" x-transition.scale class="btn-info w-20 mx-auto" @click="SaveData()">Blah</button>
+  <button
+    x-show="settings.dirty"
+    x-transition.scale
+    class="btn-small btn-info w-20 mx-auto"
+    @click="settings.save()"
+  >
+    Save
+  </button>
 </div>

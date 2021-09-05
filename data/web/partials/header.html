@@ -1,13 +1,13 @@
 <div class="header header-fixed u-unselectable header-animated">
   <div class="header-brand">
-    <div class="nav-item no-hover">
-      <a><h6 class="title">ESP32 BLE Scanner</h6></a>
+    <div class="nav-item no-hover p-0">
+      <a class="m-0 p-0"><img src="/img/esp32-ble-scanner.svg" class="m-0 p-0" style="height: 42px;" /></a>
     </div>
     <div
       class="nav-item nav-btn"
       id="header-btn"
       x-ref="menu_button"
-      @click="toggleMenu()"
+      @click="toggle_menu()"
     >
       <span></span>
       <span></span>
@@ -21,27 +21,27 @@
         class="nav-item"
         :class="tab == 'logging' ? 'active' : ''"
       >
-        <a href="#" @click="setActiveTab('logging')">Logging</a>
+        <a href="#" @click="set_active_tab('logging')">Logging</a>
       </div>
       <div
         x-ref="tab_devices"
         class="nav-item"
         :class="tab == 'devices' ? 'active' : ''"
       >
-        <a href="#" @click="setActiveTab('devices')">Devices</a>
+        <a href="#" @click="set_active_tab('devices')">Devices</a>
       </div>
       <div
         x-ref="tab_settings"
         class="nav-item"
         :class="tab == 'settings' ? 'active' : ''"
       >
-        <a href="#" @click="setActiveTab('settings')">Settings</a>
+        <a href="#" @click="set_active_tab('settings')">Settings</a>
       </div>
       <div class="nav-item has-sub" id="dropdown">
         <a class="nav-dropdown-link" @click="$refs.admin_menu.classList.toggle('dropdown-shown');">Admin</a>
         <ul class="dropdown-menu" role="menu" x-ref="admin_menu">
-          <li role="menu-item"><a href="#" @click="fetch('/api/reboot')">Reboot</a></li>
-          <li role="menu-item"><a href="#" @click="fetch('/api/clearignores')">Clear Ignores</a></li>
+          <li role="menu-item"><a href="#" @click="fetch('/api/reboot'); $refs.admin_menu.classList.remove('dropdown-shown');">Reboot</a></li>
+          <li role="menu-item"><a href="#" @click="fetch('/api/clearignores'); $refs.admin_menu.classList.remove('dropdown-shown');">Clear Ignores</a></li>
         </ul>
       </div>
     </div>

@@ -7,8 +7,11 @@
   outline: none;
   box-shadow: none;
 }
-pre > code.no-y-wrap {
-  white-space: nowrap;
+pre > code.wrap {
+  white-space: pre-wrap;
+}
+pre > code:not(.wrap) {
+  white-space: pre;
 }
 .h-panel {
   height: calc(100vh - 110px);
