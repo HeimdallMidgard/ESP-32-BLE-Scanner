@@ -23,12 +23,10 @@
 // Scanner
 #define ENDIAN_CHANGE_U16(x) ((((x)&0xFF00) >> 8) + (((x)&0xFF) << 8))
 
-// Set to true to print function names and variables
-bool debug = false;
-
 // Scanner Variables
 BLEDevice *pBLEDev;
 BLEScan *pBLEScan;
+std::vector<BLEAddress> ignored;
 
 char scan_topic[60], telemetry_topic[60];
 const char *mqtt_scan_prefix = "ESP32 BLE Scanner/Scan/";
@@ -57,16 +55,16 @@ int wifi_errors = 0;
 
 // END OF DEFINITION
 
-void reboot() {
-  Serial.println("Rebooting.");
-  delay(1000);
-  ESP.restart();
-}
-
 void write_to_logs(const char *new_log_entry) {
   // Copies to logs to publish in Weblog
   ws.printfAll(new_log_entry);
   Serial.println(new_log_entry);
+}
+
+void reboot() {
+  write_to_logs("Rebooting.");
+  delay(1000);
+  ESP.restart();
 }
 
 //
@@ -74,7 +72,7 @@ void write_to_logs(const char *new_log_entry) {
 //
 
 String loadFile(const char *filename, String defaultValue) {
-  if (debug) Serial.printf("loadFile(%s, %s)\n", filename, defaultValue.c_str());
+  if (settings["device"]["debug"]) Serial.printf("loadFile(%s, %s)\n", filename, defaultValue.c_str());
   File file = SPIFFS.open(filename);
   String data = (file.available()) ? file.readString() : defaultValue;
   if (data == "null") data = defaultValue;
@@ -83,7 +81,7 @@ String loadFile(const char *filename, String defaultValue) {
 }
 
 void loadJson(const char *filename, StaticJsonDocument<1024> &json, String defaultValue) {
-  if (debug) Serial.printf("loadJson(%s, %s)\n", filename, defaultValue.c_str());
+  if (settings["device"]["debug"]) Serial.printf("loadJson(%s, %s)\n", filename, defaultValue.c_str());
   String data = loadFile(filename, defaultValue);
   Serial.println(data);
 
@@ -92,7 +90,7 @@ void loadJson(const char *filename, StaticJsonDocument<1024> &json, String defau
     Serial.printf("deserializeJson() for %s failed: \n", filename);
     Serial.println(json_error.c_str());
     reboot();
-  } else if (debug) {
+  } else if (settings["device"]["debug"]) {
     Serial.printf("Loaded %s: ", filename);
     serializeJson(json, Serial);
     Serial.println();
@@ -100,11 +98,11 @@ void loadJson(const char *filename, StaticJsonDocument<1024> &json, String defau
 }
 
 void saveJson(StaticJsonDocument<1024> &json, const char *filename) {
-  if (debug) Serial.printf("saveJson(%s)\n", filename);
+  if (settings["device"]["debug"]) Serial.printf("saveJson(%s)\n", filename);
   File file = SPIFFS.open(filename, "w");
   if (file) {
     serializeJson(json, file);
-    if (debug) {
+    if (settings["device"]["debug"]) {
       Serial.printf("Saved to %s: ", filename);
       serializeJson(json, Serial);
       Serial.println();
@@ -121,7 +119,7 @@ void saveDevices() { saveJson(devices, devicesFile); }
 void loadDevices() { loadJson(devicesFile, devices, "[]"); }
 
 bool initSetting(const char key1[], const char key2[], const char defaultValue[]) {
-  if (debug) Serial.printf("initSetting(%s, %s, %s)\n", key1, key2, defaultValue);
+  if (settings["device"]["debug"]) Serial.printf("initSetting(%s, %s, %s)\n", key1, key2, defaultValue);
   bool changed = false;
   if (settings[key1] == nullptr) {
     Serial.printf("settings.%s not set, creating.\n", key1);
@@ -136,7 +134,7 @@ bool initSetting(const char key1[], const char key2[], const char defaultValue[]
 }
 
 bool initSetting(const char key1[], const char key2[], int defaultValue) {
-  if (debug) Serial.printf("initSetting(%s, %s, %i)\n", key1, key2, defaultValue);
+  if (settings["device"]["debug"]) Serial.printf("initSetting(%s, %s, %i)\n", key1, key2, defaultValue);
   bool changed = false;
   if (settings[key1] == nullptr) {
     Serial.printf("settings.%s not set, creating.\n", key1);
@@ -151,7 +149,7 @@ bool initSetting(const char key1[], const char key2[], int defaultValue) {
 }
 
 bool initSetting(const char key1[], const char key2[], float defaultValue) {
-  if (debug) Serial.printf("initSetting(%s, %s, %f)\n", key1, key2, defaultValue);
+  if (settings["device"]["debug"]) Serial.printf("initSetting(%s, %s, %f)\n", key1, key2, defaultValue);
   bool changed = false;
   if (settings[key1] == nullptr) {
     Serial.printf("settings.%s not set, creating.\n", key1);
@@ -166,7 +164,7 @@ bool initSetting(const char key1[], const char key2[], float defaultValue) {
 }
 
 bool initSetting(const char key1[], const char key2[], bool defaultValue) {
-  if (debug) Serial.printf("initSetting(%s, %s, %d)\n", key1, key2, defaultValue);
+  if (settings["device"]["debug"]) Serial.printf("initSetting(%s, %s, %d)\n", key1, key2, defaultValue);
   bool changed = false;
   if (settings[key1] == nullptr) {
     Serial.printf("settings.%s not set, creating.\n", key1);
@@ -183,7 +181,9 @@ bool initSetting(const char key1[], const char key2[], bool defaultValue) {
 bool initSettingsDevice() {
   bool changed = false;
   if (initSetting("device", "room", "")) changed = true;
-  if (initSetting("device", "homeassistant_discovery", true));
+  if (initSetting("device", "use_ignore_list", true)) changed = true;
+  if (initSetting("device", "debug", false)) changed = true;
+  if (initSetting("device", "homeassistant_discovery", true)) changed = true;
   return changed;
 }
 
@@ -212,7 +212,7 @@ bool initSettingsBluetooth() {
 }
 
 bool initSettings() {
-  if (debug) Serial.println("initSettings()");
+  if (settings["device"]["debug"]) Serial.println("initSettings()");
   bool changed = false;
   if (initSettingsDevice()) changed = true;
   if (initSettingsNetwork()) changed = true;
@@ -417,8 +417,15 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     if (advertisedDevice->haveManufacturerData() == false) return;
 
     std::string strManufacturerData = advertisedDevice->getManufacturerData();
-    if (!isBeacon(strManufacturerData)) {
-      pBLEDev->addIgnored(advertisedDevice->getAddress());
+    if (settings["device"]["use_ignore_list"] && !isBeacon(strManufacturerData)) {
+      BLEAddress addr = advertisedDevice->getAddress();
+      pBLEDev->addIgnored(addr);
+      ignored.push_back(addr);
+      if (settings["device"]["debug"]) {
+        char debugMsg[100];
+        sprintf(debugMsg, "Added %s to ignore list", addr.toString().c_str());
+        write_to_logs(debugMsg);
+      }
       return;
     }
     BLEBeacon oBeacon = BLEBeacon();
@@ -463,7 +470,7 @@ void publishTelemetry(NimBLEScanResults devices) {
 //
 
 void startWifi() {
-  if (debug) Serial.println("startWifi()");
+  if (settings["device"]["debug"]) Serial.println("startWifi()");
   const char *ssid = settings["network"]["ssid"];
   const char *password = settings["network"]["password"];
   const char *hostname = settings["network"]["hostname"];
@@ -488,7 +495,7 @@ void startWifi() {
 }
 
 void startMqtt() {
-  if (debug) Serial.println("startMqtt()");
+  if (settings["device"]["debug"]) Serial.println("startMqtt()");
   const char *hostname = settings["network"]["hostname"];
   const char *mqttHost = settings["mqtt"]["host"];
   int mqttPort = settings["mqtt"]["port"];
@@ -521,7 +528,7 @@ void startMqtt() {
 }
 
 void startScanner() {
-  if (debug) Serial.println("startScanner()");
+  if (settings["device"]["debug"]) Serial.println("startScanner()");
   int interval = settings["bluetooth"]["scan_interval"];
   int window = (int)(interval * 0.9);
   pBLEDev = new BLEDevice;
@@ -535,7 +542,7 @@ void startScanner() {
 }
 
 void startWebServer() {
-  if (debug) Serial.println("startWebserver()");
+  if (settings["device"]["debug"]) Serial.println("startWebserver()");
   // Serve css
   server.serveStatic("/css", SPIFFS, "/web/css");
 
@@ -550,10 +557,8 @@ void startWebServer() {
     request->send(SPIFFS, "/web/index.html", String(), false);
   });
 
-  // Settings page
-  server.on("/settings", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(SPIFFS, "/web/settings.html", String(), false);
-  });
+  // Send 200
+  server.on("/api/status", HTTP_GET, [](AsyncWebServerRequest *request) { request->send(200); });
 
   // Send settings json
   server.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest *request) {
@@ -581,15 +586,25 @@ void startWebServer() {
   });
 
   // Reset
-  server.on("/api/reset", HTTP_GET, [](AsyncWebServerRequest *request) {
-    Serial.println("Rebooting.");
-    delay(1000);
-    ESP.restart();
-  });
+  server.on("/api/reboot", HTTP_GET, [](AsyncWebServerRequest *request) { reboot(); });
 
-  // Load Devices Page
-  server.on("/devices", HTTP_GET, [](AsyncWebServerRequest *request) {
-    request->send(SPIFFS, "/web/devices.html", String(), false);
+  // Clear Ignores
+  server.on("/api/clearignores", HTTP_GET, [](AsyncWebServerRequest *request) {
+    int numAddr = ignored.size();
+    while (ignored.size() > 0) {
+      BLEAddress addr = ignored[0];
+      pBLEDev->removeIgnored(addr);
+      ignored.erase(ignored.begin());
+      if (settings["device"]["debug"]) {
+        char debugMsg[100];
+        sprintf(debugMsg, "Removed %s from ignore list", addr.toString().c_str());
+        write_to_logs(debugMsg);
+      }
+    }
+    char msg[100];
+    sprintf(msg, "Removed %i devices from ignore list", numAddr);
+    write_to_logs(msg);
+    request->send(200);
   });
 
   // Send devices json
@@ -624,7 +639,7 @@ void startWebServer() {
 }
 
 void setup() {
-  if (debug) Serial.println("setup()");
+  if (settings["device"]["debug"]) Serial.println("setup()");
   Serial.begin(115200);
   Serial.println("");
   write_to_logs("Starting...");
