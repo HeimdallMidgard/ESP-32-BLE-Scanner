@@ -10,11 +10,10 @@
 #include <NimBLEDevice.h>
 
 #include "NimBLEBeacon.h"
-#include "NimBLEEddystoneTLM.h"
-#include "NimBLEEddystoneURL.h"
 
 // Webserver
 #include "ESPAsyncWebServer.h"
+#include <AsyncElegantOTA.h>
 
 // Connection
 #include <AsyncMqttClient.h>
@@ -631,6 +630,7 @@ void startWebServer() {
 
   ws.onEvent(onWsEvent);
   server.addHandler(&ws);
+  AsyncElegantOTA.begin(&server);
 
   // Start Webserver
   server.begin();
