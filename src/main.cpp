@@ -543,11 +543,9 @@ void startScanner() {
 
 void startWebServer() {
   if (settings["device"]["debug"]) Serial.println("startWebserver()");
-  // Serve css
-  server.serveStatic("/css", SPIFFS, "/web/css");
 
-  // Serve js
-  server.serveStatic("/js", SPIFFS, "/web/js");
+  // Serve css
+  server.serveStatic("/assets", SPIFFS, "/web/assets");
 
   // Serve partials
   server.serveStatic("/partials", SPIFFS, "/web/partials");
