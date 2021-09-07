@@ -559,6 +559,7 @@ void startScanner() {
   pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
   // active scan uses more power, but get results faster
   pBLEScan->setActiveScan(true);
+  pBLEScan->setDuplicateFilter(true);
   pBLEScan->setInterval(interval);
   pBLEScan->setWindow(window); // less or equal setInterval value
 }
@@ -711,6 +712,7 @@ void loop() {
     Serial.println("Scanning...");
     pBLEScan->start(scanTime, publishTelemetry, false);
     Serial.println("_____________________________________");
+    pBLEScan->clearDuplicateCache();
     pBLEScan->clearResults(); // delete results fromBLEScan buffer to
                               // release memory
   }
