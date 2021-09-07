@@ -76,3 +76,8 @@ pre {
 .snackbar.error {
   background-color: #c9261a;
 }
+iframe.updater {
+  width: -webkit-fill-available;
+  height: calc(100vh - 52px);
+  border: none;
+}

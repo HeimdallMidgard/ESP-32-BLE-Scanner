@@ -42,7 +42,7 @@
         <ul class="dropdown-menu" role="menu" x-ref="admin_menu">
           <li role="menu-item"><a href="#" @click="fetch('/api/reboot'); $refs.admin_menu.classList.remove('dropdown-shown');">Reboot</a></li>
           <li role="menu-item"><a href="#" @click="fetch('/api/clearignores'); $refs.admin_menu.classList.remove('dropdown-shown');">Clear Ignores</a></li>
-          <li role="menu-item"><a href="/update">Update</a></li>
+          <li role="menu-item"><a href="#" @click="set_active_tab('update'); $refs.admin_menu.classList.remove('dropdown-shown');">Update</a></li>
         </ul>
       </div>
     </div>
