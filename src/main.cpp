@@ -238,7 +238,7 @@ void check_mqtt_msg(uint16_t error_state) {
 }
 
 void connectToMqtt() {
-  if(!mqttClient.connected()) {
+  if (!mqttClient.connected()) {
     write_to_logs("Connecting to MQTT");
     mqttClient.connect();
   } else {
@@ -284,7 +284,7 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
 }
 
 void WiFi_Controller() {
-  if(WiFi.status() == WL_CONNECTED || wifi_ap_result == true) {
+  if (WiFi.status() == WL_CONNECTED || wifi_ap_result == true) {
     return;
   }
   wifi_errors++;
@@ -393,17 +393,19 @@ bool isBeacon(std::string strManufacturerData) {
           cManufacturerData[1] == 0x00);
 }
 
-const char *getDeviceName(const char *uuid) {
-  if (strlen(uuid) == 0) return nullptr;
+std::string getDeviceName(std::string uuid) {
+  if (settings["device"]["debug"]) Serial.printf("getDeviceName(%s)", uuid.c_str());
+
+  if (uuid.length() == 0) return "";
   for (size_t i = 0; i < devices.size(); i++) {
-    if (strcmp(uuid, devices[i]["uuid"]) == 0) return devices[i]["name"];
+    if (uuid == devices[i]["uuid"]) return devices[i]["name"].as<std::string>();
   }
-  return nullptr;
+  return "";
 }
 
-void sendDeviceMqtt(const char *uuid, const char *name, float distance) {
+void sendDeviceMqtt(std::string uuid, std::string name, float distance) {
   char msg[120];
-  sprintf(msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f }", uuid, name, distance);
+  sprintf(msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f }", uuid.c_str(), name.c_str(), distance);
 
   uint16_t msg_error;
   msg_error = mqttClient.publish(scan_topic, 1, false, msg);
@@ -416,33 +418,54 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     if (advertisedDevice->haveManufacturerData() == false) return;
 
     std::string strManufacturerData = advertisedDevice->getManufacturerData();
+
+    BLEAddress addr = advertisedDevice->getAddress();
+    if (settings["device"]["debug"]) {
+      char debugMsg[100];
+      sprintf(debugMsg, "Found device %s", addr.toString().c_str());
+      write_to_logs(debugMsg);
+    }
+
+    if (settings["device"]["debug"]) write_to_logs("  Getting RSSI");
+    int rssi = advertisedDevice->getRSSI();
+
     if (settings["device"]["use_ignore_list"] && !isBeacon(strManufacturerData)) {
-      BLEAddress addr = advertisedDevice->getAddress();
       pBLEDev->addIgnored(addr);
       ignored.push_back(addr);
-      if (settings["device"]["debug"]) {
-        char debugMsg[100];
-        sprintf(debugMsg, "Added %s to ignore list", addr.toString().c_str());
-        write_to_logs(debugMsg);
-      }
+      if (settings["device"]["debug"]) write_to_logs("  Device isn't a beacon, adding to ignore list");
       return;
     }
+
+    if (settings["device"]["debug"]) write_to_logs("  Creating BLEBeacon");
+
     BLEBeacon oBeacon = BLEBeacon();
     oBeacon.setData(strManufacturerData);
-    const char *uuid = oBeacon.getProximityUUID().toString().c_str();
-    const char *name = getDeviceName(uuid);
-    if (name == nullptr || strlen(name) == 0) return;
 
-    int rssi = advertisedDevice->getRSSI();
+    if (settings["device"]["debug"]) write_to_logs("  Getting proximity UUID");
+    std::string uuid = oBeacon.getProximityUUID().toString();
+
+    if (settings["device"]["debug"]) write_to_logs("  Checking device list");
+    std::string name = getDeviceName(uuid);
+
+    if (name.length() == 0) {
+      if (settings["device"]["debug"]) write_to_logs("  Beacon not found");
+      return;
+    }
+
+    if (settings["device"]["debug"]) write_to_logs("  Getting signal power");
     int8_t power = oBeacon.getSignalPower();
     float distance = calculateAccuracy(power, rssi);
     // float distance = getAverageDistance(uuid, calculateAccuracy(power,
     // rssi));
 
-    if(mqttClient.connected())
+    if (mqttClient.connected()) {
       sendDeviceMqtt(uuid, name, distance);
-    else
-      sprintf("Found device %s but MQTT is not connected", name);
+      return;
+    }
+
+    char msg[100];
+    sprintf(msg, "Found device %s but MQTT is not connected", name.c_str());
+    write_to_logs(msg);
   }
 };
 
@@ -680,6 +703,7 @@ void loop() {
       delay(5000);
       return;
     }
+
     // Scanner
     if (pBLEScan->isScanning()) return;
 
