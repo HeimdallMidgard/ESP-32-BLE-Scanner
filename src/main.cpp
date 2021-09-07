@@ -17,25 +17,74 @@
 
 // Connection
 #include <AsyncMqttClient.h>
+#include <ESP32Ping.h>
 #include <WiFi.h>
 
 // Scanner
 #define ENDIAN_CHANGE_U16(x) ((((x)&0xFF00) >> 8) + (((x)&0xFF) << 8))
+#define STRING(num) #num
+
+class ScanDevice {
+  public:
+    ScanDevice(std::string var_uuid, std::string var_name, std::string var_type) {
+      _id = var_uuid;
+      _name = var_name;
+      _type = var_type;
+    }
+
+    std::string uuid() { return _id; }
+    bool uuid(std::string var_id) { return (var_id == _id); }
+
+    std::string name() { return _name; }
+
+    std::string type() { return _type; }
+
+    void tick() {
+      if (distances.size() > 0) distances.erase(distances.begin());
+    }
+
+    float distance() {
+      if (distances.size() == 0) return 99999;
+      return std::accumulate(distances.begin(), distances.end(), 0.0) / distances.size();
+    }
+
+    float distance(float new_distance) {
+      distances.push_back(new_distance);
+      if (distances.size() > 30) distances.erase(distances.begin());
+      return distance();
+    }
+
+    std::string distanceStr() { return STRING(distance()); }
+
+    std::string json() {
+      char out[100];
+      sprintf(out, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f }", _id.c_str(), _name.c_str(), distance());
+      return out;
+    }
+
+  private:
+    std::vector<float> distances;
+    std::string _id;
+    std::string _name;
+    std::string _type;
+};
 
 // Scanner Variables
 BLEDevice *pBLEDev;
 BLEScan *pBLEScan;
 std::vector<BLEAddress> ignored;
 
-char scan_topic[60], telemetry_topic[60];
-const char *mqtt_scan_prefix = "ESP32 BLE Scanner/Scan/";
-const char *status_topic = "ESP32 BLE Scanner/Status/";
-const char *mqtt_telemetry_prefix = "ESP32 BLE Scanner/tele/";
+std::string scan_topic, telemetry_topic;
+std::string mqtt_topic_root("ESP32 BLE Scanner");
+std::string mqtt_scan_prefix("ESP32 BLE Scanner/Scan/");
+std::string status_topic("ESP32 BLE Scanner/Status/");
+std::string mqtt_telemetry_prefix("ESP32 BLE Scanner/tele/");
 
-const char settingsFile[15] = "/settings.json";
-const char devicesFile[15] = "/devices.json";
+std::string settingsFile("/settings.json");
+std::string devicesFile("/devices.json");
 
 StaticJsonDocument<1024> settings, devices;
+std::vector<ScanDevice> device_list;
 
 // IPAddress ip(192, 168, 1, 177);  // not in use
 
@@ -51,6 +100,9 @@ AsyncMqttClient mqttClient;
 AsyncWebServer server(80);
 AsyncWebSocket ws("/ws");
 int wifi_errors = 0;
+
+// Delete device distance every other scan
+bool do_delete_distance = false;
 
 // END OF DEFINITION
 
@@ -70,39 +122,39 @@ void reboot() {
 // Settings functions
 //
 
-String loadFile(const char *filename, String defaultValue) {
-  if (settings["device"]["debug"]) Serial.printf("loadFile(%s, %s)\n", filename, defaultValue.c_str());
-  File file = SPIFFS.open(filename);
+String loadFile(std::string filename, String defaultValue) {
+  if (settings["device"]["debug"]) Serial.printf("loadFile(%s, %s)\n", filename.c_str(), defaultValue.c_str());
+  File file = SPIFFS.open(filename.c_str());
   String data = (file.available()) ? file.readString() : defaultValue;
   if (data == "null") data = defaultValue;
   file.close();
   return data;
 }
 
-void loadJson(const char *filename, StaticJsonDocument<1024> &json, String defaultValue) {
-  if (settings["device"]["debug"]) Serial.printf("loadJson(%s, %s)\n", filename, defaultValue.c_str());
+void loadJson(std::string filename, StaticJsonDocument<1024> &json, String defaultValue) {
+  if (settings["device"]["debug"]) Serial.printf("loadJson(%s, %s)\n", filename.c_str(), defaultValue.c_str());
   String data = loadFile(filename, defaultValue);
   Serial.println(data);
 
   DeserializationError json_error = deserializeJson(json, data);
   if (json_error) {
-    Serial.printf("deserializeJson() for %s failed: \n", filename);
+    Serial.printf("deserializeJson() for %s failed: \n", filename.c_str());
     Serial.println(json_error.c_str());
     reboot();
   } else if (settings["device"]["debug"]) {
-    Serial.printf("Loaded %s: ", filename);
+    Serial.printf("Loaded %s: ", filename.c_str());
     serializeJson(json, Serial);
     Serial.println();
   }
 }
 
-void saveJson(StaticJsonDocument<1024> &json, const char *filename) {
-  if (settings["device"]["debug"]) Serial.printf("saveJson(%s)\n", filename);
-  File file = SPIFFS.open(filename, "w");
+void saveJson(StaticJsonDocument<1024> &json, std::string filename) {
+  if (settings["device"]["debug"]) Serial.printf("saveJson(%s)\n", filename.c_str());
+  File file = SPIFFS.open(filename.c_str(), "w");
   if (file) {
     serializeJson(json, file);
     if (settings["device"]["debug"]) {
-      Serial.printf("Saved to %s: ", filename);
+      Serial.printf("Saved to %s: ", filename.c_str());
       serializeJson(json, Serial);
       Serial.println();
     }
@@ -115,7 +167,19 @@ void loadSettings() { loadJson(settingsFile, settings, "{}"); }
 
 void saveDevices() { saveJson(devices, devicesFile); }
 
-void loadDevices() { loadJson(devicesFile, devices, "[]"); }
+void parseDevices() {
+  device_list.empty();
+  JsonArray arr = devices.as<JsonArray>();
+  for (JsonArray::iterator dev = arr.begin(); dev != arr.end(); ++dev) {
+    JsonObject d = dev->as<JsonObject>();
+    device_list.push_back(ScanDevice(d["uuid"], d["name"], d["type"]));
+  }
+}
+
+void loadDevices() {
+  loadJson(devicesFile, devices, "[]");
+  parseDevices();
+}
 
 bool initSetting(const char key1[], const char key2[], const char defaultValue[]) {
   if (settings["device"]["debug"]) Serial.printf("initSetting(%s, %s, %s)\n", key1, key2, defaultValue);
@@ -220,7 +284,7 @@ bool initSettings() {
   return changed;
 }
 
-bool savePostedJson(AsyncWebParameter *p, StaticJsonDocument<1024> &json, const char *filename) {
+bool savePostedJson(AsyncWebParameter *p, StaticJsonDocument<1024> &json, std::string filename) {
   json.clear();
   DeserializationError json_error = deserializeJson(json, p->value());
   if (json_error) {
@@ -250,11 +314,11 @@ void onMqttConnect(bool sessionPresent) {
   write_to_logs("Connected to MQTT");
 
   // Set last will (msg that broker will send when connection to ESP32 is gone)
-  mqttClient.setWill(status_topic, 1, true, "offline");
+  mqttClient.setWill(status_topic.c_str(), 1, true, "offline");
 
   // Publish online status
   uint16_t msg_error;
-  msg_error = mqttClient.publish(status_topic, 1, true, "online");
+  msg_error = mqttClient.publish(status_topic.c_str(), 1, true, "online");
   check_mqtt_msg(msg_error);
 }
 
@@ -279,44 +343,54 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
   Serial.print("WiFi connected successfuly • IP: ");
   Serial.println(WiFi.localIP());
 
-  delay(3000);
+  while (!Ping.ping(settings["mqtt"]["host"].as<const char *>(), 3))
+    delay(50);
+
   connectToMqtt();
+   // Reset Wifi Error Counter when the connection is working
+   wifi_errors = 0;
+}
+
+void WiFiLostIP(WiFiEvent_t event, WiFiEventInfo_t info) {
+  Serial.print("WiFi lost IP, disconnecting mqtt");
+  mqttClient.disconnect();
+}
+
+void startAP() {
+  Serial.println(" ");
+  Serial.println("Starting AP");
+
+  WiFi.mode(WIFI_AP);
+  delay(500);
+  WiFi.softAP("ESP32-BLE-Scanner");
+
+  wifi_ap_result = WiFi.softAP("ESP32-BLE-Scanner");
+
+  server.begin(); // Start Webserver
+
+  delay(500);
+  Serial.print("Event IP address: ");
+  Serial.println(WiFi.softAPIP());
 }
 
 void WiFi_Controller() {
-  if (WiFi.status() == WL_CONNECTED || wifi_ap_result == true) {
-    return;
-  }
+  Serial.println("WiFi_Controller()");
+  if (WiFi.status() == WL_CONNECTED || wifi_ap_result == true) return;
+
   wifi_errors++;
   Serial.println(" ");
   Serial.print("Wifi Errors: ");
   Serial.println(wifi_errors);
 
-  if ((wifi_errors < 9) && (wifi_ap_result == false)) {
-    Serial.println("Disconnected from WiFi access point");
-    Serial.println("Trying to Reconnect");
-
-    const char *ssid = settings["wifi"]["ssid"];
-    const char *password = settings["wifi"]["password"];
-
-    WiFi.begin(ssid, password);
-
-  } else if ((wifi_errors > 9) && (wifi_ap_result == false)) {
-    Serial.println(" ");
-    Serial.println("Starting AP");
-
-    WiFi.mode(WIFI_AP);
-    delay(500);
-    WiFi.softAP("ESP32-BLE-Scanner");
-
-    wifi_ap_result = WiFi.softAP("ESP32-BLE-Scanner");
-
-    server.begin(); // Start Webserver
-
-    delay(500);
-    Serial.print("Event IP address: ");
-    Serial.println(WiFi.softAPIP());
+  if (wifi_errors == 10 && !wifi_ap_result) {
+    startAP();
+    return;
   }
+
+  Serial.println("Disconnected from WiFi access point");
+  Serial.println("Trying to Reconnect");
+
+  WiFi.begin(settings["wifi"]["ssid"].as<const char*>(), settings["wifi"]["password"].as<const char*>());
 }
 
 void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
@@ -360,6 +434,7 @@ float calculateAccuracy(double txPower, double rssi_calc) {
 
 // Distance Calculation
 float calculateAccuracy(float txCalibratedPower, float rssi) {
+  if (settings["device"]["debug"]) Serial.println("calculateAccuracy()");
   float ratio_db = txCalibratedPower - rssi;
   float ratio_linear = pow(10, ratio_db / 10);
 
@@ -371,22 +446,10 @@ float calculateAccuracy(float txCalibratedPower, float rssi) {
 // Checks if devices are inside devices.json
 bool devices_set_up() { return (devices.size() > 0); }
 
-// float getAverageDistance(const char *uuid, float distance) {
-//   if (deviceDistances.count(uuid) == 0) {
-//     std::vector<float> distances;
-//     deviceDistances[uuid] = distances;
-//   }
-//   if (deviceDistances[uuid].size() == 30) {
-//     deviceDistances[uuid].erase(deviceDistances[uuid].begin());
-//   }
-//   deviceDistances[uuid].push_back(distance);
-//   return std::accumulate(deviceDistances[uuid].begin(),
-//   deviceDistances[uuid].end(), 0LL) / deviceDistances[uuid].size();
-// }
-
 // Scanner
 
 bool isBeacon(std::string strManufacturerData) {
+  if (settings["device"]["debug"]) Serial.println("isBeacon()");
   uint8_t cManufacturerData[100];
   strManufacturerData.copy((char *)cManufacturerData, strManufacturerData.length(), 0);
   return (strManufacturerData.length() == 25 && cManufacturerData[0] == 0x4C &&
@@ -394,7 +457,7 @@ bool isBeacon(std::string strManufacturerData) {
 }
 
 std::string getDeviceName(std::string uuid) {
-  if (settings["device"]["debug"]) Serial.printf("getDeviceName(%s)", uuid.c_str());
+  if (settings["device"]["debug"]) Serial.printf("getDeviceName(%s)\n", uuid.c_str());
 
   if (uuid.length() == 0) return "";
   for (size_t i = 0; i < devices.size(); i++) {
@@ -403,18 +466,27 @@ std::string getDeviceName(std::string uuid) {
   return "";
 }
 
-void sendDeviceMqtt(std::string uuid, std::string name, float distance) {
-  char msg[120];
-  sprintf(msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f }", uuid.c_str(), name.c_str(), distance);
+void sendMqtt(std::string msg) {
+  if (settings["device"]["debug"]) Serial.printf("sendMqtt(%s)\n", msg.c_str());
 
   uint16_t msg_error;
-  msg_error = mqttClient.publish(scan_topic, 1, false, msg);
+  msg_error = mqttClient.publish(scan_topic.c_str(), 1, false, msg.c_str());
   check_mqtt_msg(msg_error);
-  write_to_logs(msg);
+  write_to_logs(msg.c_str());
+}
+
+void sendDeviceMqtt(std::string uuid, std::string name, float distance) {
+  if (settings["device"]["debug"]) Serial.printf("sendDeviceMqtt(%s, %s, %f)\n", uuid.c_str(), name.c_str(), distance);
+
+  char msg[120];
+  sprintf(msg, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f }", uuid.c_str(), name.c_str(), distance);
+  std::string strMsg(msg);
+  sendMqtt(strMsg);
 }
 
 class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
   void onResult(BLEAdvertisedDevice *advertisedDevice) {
+    if (settings["device"]["debug"]) Serial.println("onResult()");
     if (advertisedDevice->haveManufacturerData() == false) return;
 
     std::string strManufacturerData = advertisedDevice->getManufacturerData();
@@ -445,12 +517,13 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     std::string uuid = oBeacon.getProximityUUID().toString();
 
     if (settings["device"]["debug"]) write_to_logs("  Checking device list");
-    std::string name = getDeviceName(uuid);
-
-    if (name.length() == 0) {
-      if (settings["device"]["debug"]) write_to_logs("  Beacon not found");
+    auto dev = std::find_if(device_list.begin(), device_list.end(), [&uuid](ScanDevice &d) { return d.uuid(uuid); });
+    if (dev == device_list.end()) {
+      if (settings["device"]["debug"]) write_to_logs("  Device not wanted");
       return;
     }
+
+    ScanDevice &device = *dev;
 
     if (settings["device"]["debug"]) write_to_logs("  Getting signal power");
     int8_t power = oBeacon.getSignalPower();
@@ -458,18 +531,21 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     // float distance = getAverageDistance(uuid, calculateAccuracy(power,
     // rssi));
 
+    device.distance(distance);
+
     if (mqttClient.connected()) {
-      sendDeviceMqtt(uuid, name, distance);
+      sendMqtt(device.json());
       return;
     }
 
     char msg[100];
-    sprintf(msg, "Found device %s but MQTT is not connected", name.c_str());
+    sprintf(msg, "Found device %s but MQTT is not connected", device.name().c_str());
     write_to_logs(msg);
   }
 };
 
 void publishTelemetry(NimBLEScanResults devices) {
+  if (settings["device"]["debug"]) Serial.println("publishTelemetry()");
   if (!mqttClient.connected()) return;
   char msg[100];
   int uptime = (int)(esp_timer_get_time() / 1000000);
@@ -478,7 +554,7 @@ void publishTelemetry(NimBLEScanResults devices) {
           devices.getCount(), ESP.getFreeHeap(), uptime);
   ws.printfAll(msg);
   uint16_t msg_error;
-  msg_error = mqttClient.publish(telemetry_topic, 1, false, msg);
+  msg_error = mqttClient.publish(telemetry_topic.c_str(), 1, false, msg);
   check_mqtt_msg(msg_error);
   Serial.println(msg);
 }
@@ -507,13 +583,13 @@ void startWifi() {
   WiFi.setHostname(hostname);
 
   WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_STA_CONNECTED);
+  WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_STA_DISCONNECTED);
   WiFi.onEvent(WiFiGotIP, SYSTEM_EVENT_STA_GOT_IP);
+  WiFi.onEvent(WiFiLostIP, SYSTEM_EVENT_STA_LOST_IP);
   WiFi.onEvent(WiFiStationConnected, SYSTEM_EVENT_AP_STACONNECTED);
   WiFi.onEvent(WiFiStationDisconnected, SYSTEM_EVENT_AP_STADISCONNECTED);
 
-  delay(1000);
   WiFi.begin(ssid, password);
-  delay(3000);
 }
 
 void startMqtt() {
@@ -529,10 +605,8 @@ void startMqtt() {
   write_to_logs(msg);
 
   // Combine Room and Prefix to MQTT topic
-  strcpy(scan_topic, mqtt_scan_prefix);
-  strcat(scan_topic, settings["device"]["room"]);
-  strcpy(telemetry_topic, mqtt_telemetry_prefix);
-  strcat(telemetry_topic, settings["device"]["room"]);
+  scan_topic = mqtt_topic_root + "/Scan/" + settings["device"]["room"].as<std::string>();
+  telemetry_topic = mqtt_topic_root + "/tele/" + settings["device"]["room"].as<std::string>();
 
   mqttClient.onConnect(onMqttConnect);
   mqttClient.onDisconnect(onMqttDisconnect);
@@ -582,9 +656,9 @@ void startWebServer() {
 
   // Send settings json
   server.on("/api/settings", HTTP_GET, [](AsyncWebServerRequest *request) {
-    char json[1000];
+    std::string json;
     serializeJson(settings, json);
-    request->send(200, "application/json", json);
+    request->send(200, "application/json", json.c_str());
   });
 
   // Save settings json
@@ -629,9 +703,9 @@ void startWebServer() {
 
   // Send devices json
   server.on("/api/devices", HTTP_GET, [](AsyncWebServerRequest *request) {
-    char json[1000];
+    std::string json;
     serializeJson(devices, json);
-    request->send(200, "application/json", json);
+    request->send(200, "application/json", json.c_str());
   });
 
   // Save devices json
@@ -685,33 +759,40 @@ void setup() {
   startWebServer();
   startMqtt();
   startScanner();
-  delay(500);
 
   if (devices_set_up() == false) write_to_logs("No devices set up. Not scanning.");
 }
 
+void delete_distance(ScanDevice &dev) { dev.tick(); }
+
+void delete_distances() {
+  std::for_each(device_list.begin(), device_list.end(), delete_distance);
+  do_delete_distance = !do_delete_distance;
+}
+
 void loop() {
-  if ((WiFi.status() == WL_DISCONNECTED) && (wifi_ap_result == false)) {
+  if (settings["device"]["debug"]) Serial.println("loop()");
+
+  while (wifi_ap_result) delay(5000);
+
+  if (!WiFi.isConnected() && !wifi_ap_result) {
     delay(5000);
     WiFi_Controller();
-  } else if ((WiFi.status() == WL_CONNECTED)) {
-    // Reset Wifi Error Counter when the connection is working
-    if (wifi_errors > 0) wifi_errors = 0;
-
-    if (devices.size() == 0) {
-      write_to_logs("No devices set up. Not scanning.");
-      delay(5000);
-      return;
-    }
-
-    // Scanner
-    if (pBLEScan->isScanning()) return;
-
-    int scanTime = settings["bluetooth"]["scan_time"];
-    Serial.println("Scanning...");
-    pBLEScan->start(scanTime, publishTelemetry, false);
-    Serial.println("_____________________________________");
-    pBLEScan->clearResults(); // delete results fromBLEScan buffer to
-                              // release memory
+    return;
   }
+  if (devices.size() == 0) {
+    write_to_logs("No devices set up. Not scanning.");
+    delay(5000);
+    return;
+  }
+  while (pBLEScan->isScanning()) delay((int)(settings["bluetooth"]["scan_time"].as<int>() / 4));
+
+  //if (do_delete_distance) delete_distances();
+  // Scanner
+  int scanTime = settings["bluetooth"]["scan_time"];
+  Serial.println("Scanning...");
+  pBLEScan->start(scanTime, publishTelemetry, false);
+  Serial.println("_____________________________________");
+  pBLEScan->clearResults(); // delete results fromBLEScan buffer to
+                            // release memory
 }
