@@ -784,14 +784,12 @@ void loop() {
     delay(5000);
     return;
   }
-  while (pBLEScan->isScanning()) delay((int)(settings["bluetooth"]["scan_time"].as<int>() / 4));
+  while (pBLEScan->isScanning()) delay(settings["bluetooth"]["scan_time"].as<int>() / 4);
 
-  //if (do_delete_distance) delete_distances();
+  if (do_delete_distance) delete_distances();
   // Scanner
-  int scanTime = settings["bluetooth"]["scan_time"];
+  pBLEScan->clearResults(); // Start the scan totally fresh
   Serial.println("Scanning...");
-  pBLEScan->start(scanTime, publishTelemetry, false);
+  pBLEScan->start(settings["bluetooth"]["scan_time"].as<int>(), publishTelemetry, false);
   Serial.println("_____________________________________");
-  pBLEScan->clearResults(); // delete results fromBLEScan buffer to
-                            // release memory
 }
