@@ -530,7 +530,10 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     // float distance = getAverageDistance(uuid, calculateAccuracy(power,
     // rssi));
 
-    device.distance(distance);
+    if (std::isinf(device.distance(distance))) {
+      if (settings["device"]["debug"]) write_to_logs("  Distance is infinite, not reporting");
+      return;
+    }
 
     if (mqttClient.connected()) {
       sendMqtt(device.json());
