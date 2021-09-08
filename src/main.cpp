@@ -501,9 +501,10 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     int rssi = advertisedDevice->getRSSI();
 
     if (settings["device"]["use_ignore_list"] && !isBeacon(strManufacturerData)) {
+      if (settings["device"]["debug"]) write_to_logs("  Device isn't a beacon, adding to ignore list");
       pBLEDev->addIgnored(addr);
       ignored.push_back(addr);
-      if (settings["device"]["debug"]) write_to_logs("  Device isn't a beacon, adding to ignore list");
+      pBLEScan->erase(addr);;
       return;
     }
 
@@ -537,12 +538,12 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
 
     if (mqttClient.connected()) {
       sendMqtt(device.json());
-      return;
+    } else {
+      char msg[100];
+      sprintf(msg, "Found device %s but MQTT is not connected", device.name().c_str());
+      write_to_logs(msg);
     }
-
-    char msg[100];
-    sprintf(msg, "Found device %s but MQTT is not connected", device.name().c_str());
-    write_to_logs(msg);
+    pBLEScan->erase(addr);;
   }
 };
 
