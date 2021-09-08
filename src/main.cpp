@@ -486,8 +486,10 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
     if (settings["device"]["debug"]) Serial.println("onResult()");
     if (advertisedDevice->haveManufacturerData() == false) return;
 
+    if (settings["device"]["debug"]) Serial.println("Getting manufacturer data");
     std::string strManufacturerData = advertisedDevice->getManufacturerData();
 
+    if (settings["device"]["debug"]) Serial.println("Getting address");
     BLEAddress addr = advertisedDevice->getAddress();
     if (settings["device"]["debug"]) {
       char debugMsg[100];
