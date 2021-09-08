@@ -25,45 +25,45 @@
 #define STRING(num) #num
 
 class ScanDevice {
-    std::vector<float> distances;
-    std::string _id;
-    std::string _name;
-    std::string _type;
+  std::vector<float> distances;
+  std::string _id;
+  std::string _name;
+  std::string _type;
 
-  public:
-    ScanDevice(std::string var_uuid, std::string var_name, std::string var_type) {
-      _id = var_uuid;
-      _name = var_name;
-      _type = var_type;
-    }
+public:
+  ScanDevice(std::string var_uuid, std::string var_name, std::string var_type) {
+    _id = var_uuid;
+    _name = var_name;
+    _type = var_type;
+  }
 
-    std::string uuid() { return _id; }
-    bool uuid(std::string var_id) { return (var_id == _id); }
-    std::string name() { return _name; }
-    std::string type() { return _type; }
+  std::string uuid() { return _id; }
+  bool uuid(std::string var_id) { return (var_id == _id); }
+  std::string name() { return _name; }
+  std::string type() { return _type; }
 
-    void tick() {
-      if (distances.size() > 0) distances.erase(distances.begin());
-    }
+  void tick() {
+    if (distances.size() > 0) distances.erase(distances.begin());
+  }
 
-    float distance() {
-      if (distances.size() == 0) return 99999;
-      return std::accumulate(distances.begin(), distances.end(), 0.0) / distances.size();
-    }
+  float distance() {
+    if (distances.size() == 0) return 99999;
+    return std::accumulate(distances.begin(), distances.end(), 0.0) / distances.size();
+  }
 
-    float distance(float new_distance) {
-      distances.push_back(new_distance);
-      if (distances.size() > 30) distances.erase(distances.begin());
-      return distance();
-    }
+  float distance(float new_distance) {
+    distances.push_back(new_distance);
+    if (distances.size() > 30) distances.erase(distances.begin());
+    return distance();
+  }
 
-    std::string distanceStr() { return STRING(distance()); }
+  std::string distanceStr() { return STRING(distance()); }
 
-    std::string json() {
-      char out[100];
-      sprintf(out, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f }", _id.c_str(), _name.c_str(), distance());
-      return out;
-    }
+  std::string json() {
+    char out[100];
+    sprintf(out, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f }", _id.c_str(), _name.c_str(), distance());
+    return out;
+  }
 };
 
 // Scanner Variables
@@ -344,8 +344,8 @@ void WiFiGotIP(WiFiEvent_t event, WiFiEventInfo_t info) {
     delay(50);
 
   connectToMqtt();
-   // Reset Wifi Error Counter when the connection is working
-   wifi_errors = 0;
+  // Reset Wifi Error Counter when the connection is working
+  wifi_errors = 0;
 }
 
 void WiFiLostIP(WiFiEvent_t event, WiFiEventInfo_t info) {
@@ -387,7 +387,7 @@ void WiFi_Controller() {
   Serial.println("Disconnected from WiFi access point");
   Serial.println("Trying to Reconnect");
 
-  WiFi.begin(settings["wifi"]["ssid"].as<const char*>(), settings["wifi"]["password"].as<const char*>());
+  WiFi.begin(settings["wifi"]["ssid"].as<const char *>(), settings["wifi"]["password"].as<const char *>());
 }
 
 void onWsEvent(AsyncWebSocket *server, AsyncWebSocketClient *client, AwsEventType type, void *arg, uint8_t *data, size_t len) {
@@ -504,7 +504,7 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
       if (settings["device"]["debug"]) write_to_logs("  Device isn't a beacon, adding to ignore list");
       pBLEDev->addIgnored(addr);
       ignored.push_back(addr);
-      pBLEScan->erase(addr);;
+      pBLEScan->erase(addr);
       return;
     }
 
@@ -543,7 +543,7 @@ class MyAdvertisedDeviceCallbacks : public BLEAdvertisedDeviceCallbacks {
       sprintf(msg, "Found device %s but MQTT is not connected", device.name().c_str());
       write_to_logs(msg);
     }
-    pBLEScan->erase(addr);;
+    pBLEScan->erase(addr);
   }
 };
 
@@ -631,6 +631,10 @@ void startScanner() {
   int interval = settings["bluetooth"]["scan_interval"];
   int window = (int)(interval * 0.9);
   pBLEDev = new BLEDevice;
+
+  // Filter by address and data, advertisements from the same address will be reported only once,
+  // except if the data in the advertisement has changed, then it will be reported again.
+  pBLEDev->setScanFilterMode(2);
   pBLEDev->init("");
   pBLEScan = pBLEDev->getScan(); // create new scan
   pBLEScan->setAdvertisedDeviceCallbacks(new MyAdvertisedDeviceCallbacks());
@@ -776,7 +780,8 @@ void delete_distances() {
 void loop() {
   if (settings["device"]["debug"]) Serial.println("loop()");
 
-  while (wifi_ap_result) delay(5000);
+  while (wifi_ap_result)
+    delay(5000);
 
   if (!WiFi.isConnected() && !wifi_ap_result) {
     delay(5000);
@@ -788,7 +793,8 @@ void loop() {
     delay(5000);
     return;
   }
-  while (pBLEScan->isScanning()) delay(settings["bluetooth"]["scan_time"].as<int>() / 4);
+  while (pBLEScan->isScanning())
+    delay(settings["bluetooth"]["scan_time"].as<int>() / 4);
 
   if (do_delete_distance) delete_distances();
   // Scanner
