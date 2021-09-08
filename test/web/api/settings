@@ -1,0 +1,21 @@
+{
+  "network": {
+    "ssid": "This is a network",
+    "password": "This is a password",
+    "hostname": "test-esp32"
+  },
+  "mqtt": {
+    "host": "10.0.0.1",
+    "port": 1883,
+    "user": "",
+    "password": ""
+  },
+  "device": {
+    "room": "Test",
+    "homeassistant_discovery": true
+  },
+  "bluetooth": {
+    "scan_time": 5,
+    "scan_interval": 300
+  }
+}

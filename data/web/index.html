@@ -7,38 +7,30 @@
       content="width=device-width,initial-scale=1,user-scalable=no"
     />
     <title>ESP 32 Bluetooth Scanner for Home Assistant</title>
-    <link rel="stylesheet" type="text/css" href="/css/mini-default.min.css" />
-    <script src="/js/logging.js"></script>
-    <script defer src="/js/alpine.3.2.4.min.js"></script>
+    <link rel="shortcut icon" type="image/ico" href="/assets/favicon.ico"/>
+    <link rel="stylesheet" type="text/css" href="https://unpkg.com/cirrus-ui" />
+    <link rel="stylesheet" type="text/css" href="/assets/css/custom.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css"
+      integrity="sha512-1ycn6IcaQQ40/MKBW2W4Rhis/DbILU74C1vSrLJxCq57o941Ym01SwNsOMqvEBFlcgUa6xLiPY/NS5R+E6ztJQ=="
+      crossorigin="anonymous"
+      referrerpolicy="no-referrer"
+    />
+    <script src="/assets/js/script.js"></script>
+    <script src="https://unpkg.com/@alpinejs/persist@3.3.1/dist/cdn.min.js"></script>
+    <script defer src="https://unpkg.com/alpinejs@3.3.1/dist/cdn.min.js"></script>
   </head>
 
-  <body>
-    <header>
-      <a href="#" class="logo">ESP32 BLE Scanner</a>
-      <span style="text-align: right">
-        <a href="/" class="button">Home</a>
-        <a href="/devices" class="button">Device Management</a>
-        <a href="/settings" class="button">Settings</a>
-      </span>
-    </header>
-    <div class="container">
-      <div class="row">
-        <div
-          class="col-sm-12 col-md-8 col-lg-6"
-          style="margin-left: auto; margin-right: auto"
-        >
-          <fieldset x-data="startSocket()">
-            <legend>Scan Results / Logs</legend>
-            <textarea
-              id="logs"
-              name="logs"
-              rows="15"
-              style="width: 100%"
-              x-text="log_lines.join('\n')"
-            ></textarea>
-          </fieldset>
-        </div>
-      </div>
+  <body x-data="load()">
+    <div class="snackbar bottom-center u-round u-shadow" x-ref="snackbar"></div>
+    <div x-html="await get_partial('header')""></div>
+    <div class="fullscreen row u-overflow-hidden" style="padding-top: 52px"">
+      <div
+        x-ref="main"
+        :class="get_tab_classes(tab)"
+        x-html="await get_partial(tab);"
+      ></div>
     </div>
   </body>
 </html>

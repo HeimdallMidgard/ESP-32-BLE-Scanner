@@ -1,0 +1,73 @@
+<div class="frame" x-init="settings.$refs = $refs;">
+  <div class="tab-container tabs-center">
+    <ul>
+      <template
+        x-for="section in Object.keys(settings.data)"
+        :key="'tab_' + section"
+      >
+        <li
+          x-data="{ tab: section }"
+          :class="settings.tab == tab ? 'selected' : ''"
+        >
+          <div
+            class="tab-item-content capitalize"
+            x-text="section"
+            @click="settings.tab = tab;"
+          ></div>
+        </li>
+      </template>
+    </ul>
+  </div>
+  <div x-data="{ s: settings.data }">
+    <template x-for="[section, values] in Object.entries(s)" :key="section">
+      <template x-for="[setting, value] in Object.entries(s[section])">
+        <div
+          class="row ignore-screen level animated"
+          :class="section == settings.tab ? 'fadeIn' : 'u-none'"
+          x-data="{ input: settings.get_input_type(s[section][setting]) }"
+        >
+          <div class="col-3 ignore-screen level-item">
+            <p
+              class="m-0 capitalize input-label"
+              x-text="setting.replaceAll('_', ' ') + ':'"
+            ></p>
+          </div>
+          <div
+            class="col-9 ignore-screen level-item"
+            :class="input.type == 'checkbox' ? 'form-ext-control' : ''"
+          >
+            <div
+              :class="input.type == 'checkbox' ? 'form-ext-toggle' : ''"
+              style="width: 100%"
+            >
+              <input
+                :id="section + '_' + setting"
+                x-model="s[section][setting]"
+                :type="input.type"
+                :placeholder="setting.replace('_', ' ')"
+                :style="input.style"
+                class="form-ext-input"
+                @input="settings.dirty = true;"
+              />
+              <div
+                x-show="input.type == 'checkbox'"
+                class="form-ext-toggle__toggler"
+                @click="s[section][setting] = !s[section][setting]; settings.dirty = true;"
+              >
+                <i></i>
+              </div>
+            </div>
+          </div>
+        </div>
+      </template>
+    </template>
+  </div>
+  <button
+    x-show="settings.dirty"
+    x-transition.scale
+    class="btn-small btn-info w-20 mx-auto"
+    @click="settings.save()"
+  >
+    Save
+  </button>
+</div>

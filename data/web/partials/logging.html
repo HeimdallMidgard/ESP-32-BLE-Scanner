@@ -1,0 +1,28 @@
+<div
+  class="p-0 m-0 u-relative"
+  x-data="{ wrap_lines: $persist(false), search_text: $persist('') }"
+>
+  <pre>
+    <code
+      class="u-overflow-x-auto u-overflow-y-scroll dark h-panel"
+      :class="wrap_lines ? 'wrap' : ''"
+      x-text="logging.log_lines.join('\n')"
+    ></code>
+  </pre>
+  <div class="w-100">
+    <div class="form-ext-control u-flex">
+      <label class="form-ext-toggle__label">
+        <span>Wrap lines</span>
+        <div class="form-ext-toggle ml-2">
+          <input
+            name="wrapLogText"
+            type="checkbox"
+            class="form-ext-input"
+            x-model="wrap_lines"
+          />
+          <div class="form-ext-toggle__toggler"><i></i></div>
+        </div>
+      </label>
+    </div>
+  </div>
+</div>
