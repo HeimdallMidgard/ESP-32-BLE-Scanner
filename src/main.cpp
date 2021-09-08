@@ -25,6 +25,11 @@
 #define STRING(num) #num
 
 class ScanDevice {
+    std::vector<float> distances;
+    std::string _id;
+    std::string _name;
+    std::string _type;
+
   public:
     ScanDevice(std::string var_uuid, std::string var_name, std::string var_type) {
       _id = var_uuid;
@@ -34,9 +39,7 @@ class ScanDevice {
 
     std::string uuid() { return _id; }
     bool uuid(std::string var_id) { return (var_id == _id); }
-
     std::string name() { return _name; }
-
     std::string type() { return _type; }
 
     void tick() {
@@ -61,12 +64,6 @@ class ScanDevice {
       sprintf(out, "{ \"id\": \"%s\", \"name\": \"%s\", \"distance\": %f }", _id.c_str(), _name.c_str(), distance());
       return out;
     }
-
-  private:
-    std::vector<float> distances;
-    std::string _id;
-    std::string _name;
-    std::string _type;
 };
 
 // Scanner Variables
